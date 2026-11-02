@@ -4,19 +4,19 @@
 
 ![Code2KB Spec: from pinned source revisions to reviewable knowledge](assets/readme/overview.svg)
 
-Build **evidence-backed, reviewable, publishable** business and engineering knowledge bases from pinned source revisions.
+Use AI to extract business logic from pinned source revisions and build an **evidence-backed, reviewable, publishable** knowledge base for a question-answering bot.
 
-Code2KB Spec provides a knowledge-file specification, an AI agent skill, templates, and Python reference tools. A coding agent reads source code and writes knowledge; the tools check files, evidence, and release state. It is intended for teams that need traceable knowledge across code repositories.
+Code2KB Spec is a prompt-engineering workflow and knowledge-file specification for coding agents. It provides a Skill, templates, and Python reference tools. An agent follows the Skill to read source code, gather evidence, and write business and engineering knowledge; the tools check files, evidence, and release state. It is for teams turning code behavior into traceable business knowledge for bot-based Q&A.
 
 ## Workflow and outputs
 
-`Pinned Git revisions → Entry-point inventory → Module evidence and writing → Review → Two-view release`
+`Pinned Git revisions → AI inventory and evidence gathering → Knowledge writing → Review → Two-view release → External retrieval and bot Q&A`
 
-| Output | Contents |
-| --- | --- |
-| Knowledge source | Functional outline, module specifications, business and engineering text, unresolved questions |
-| Release | Separate business and engineering views, version manifest, and current-version pointer |
-| Optional retrieval extension | Topic-sized retrieval units with an independent audit record |
+| Output | Contents | Consumer |
+| --- | --- | --- |
+| Knowledge source | Functional outline, module specifications, business and engineering text, unresolved questions | Maintainers investigate, review, and update it; internal specifications and process files stay out of the bot index |
+| Release | Separate business and engineering views, version manifest, and current-version pointer | The business view supplies Q&A content; engineers use the engineering view to trace implementation; the manifest and pointer identify the version |
+| Optional retrieval extension | Topic-sized units derived from reviewed text, with an independent audit record | External FTS or vector indexes ingest audience-specific units for evidence retrieval |
 
 For source upgrades, 1.0.0 can also produce a [read-only review plan](docs/1.0.0-public-contract.md) to locate knowledge that may need reinterpretation. It does not rewrite knowledge or approve releases.
 
@@ -55,6 +55,12 @@ python3 -B examples/create_demo.py
 ```
 
 The command creates a small source repository and knowledge project in a temporary directory, runs `check`, and prints the project path. It demonstrates the file structure and validation workflow; it does not generate a complete knowledge base.
+
+### From published knowledge to bot answers
+
+A bot can use an external FTS or vector index to retrieve business knowledge, then have an answer model compose a response from the retrieved text. The project's audited machine-indexing path is the [optional retrieval extension](docs/retrieval-contract.md): publish both views, then build, evaluate, and audit business retrieval units. A business bot ingests only business units. Consumers who split and index the base business view themselves must handle chunking, preservation of conditions and unknowns, audience isolation, and version switching; that path is outside this project's audited indexing contract. `retrieval-query` returns candidate evidence; it does not generate or validate final answers.
+
+The [public PetClinic case](conformance/public-source/petclinic/README.md) shows part of this path: a fixed-source "find owners by last name" branch becomes business knowledge and a retrieval unit. The [SQLite FTS5 run record](conformance/public-source/petclinic/fts5-run.json) shows that "空白姓氏" retrieves that unit. This small case tests evidence location, not bot answers or production behavior.
 
 ## Create a knowledge project
 
@@ -112,6 +118,6 @@ A passing `check` does not mean the knowledge is ready to publish. The [usage gu
 
 ## Limitations
 
-Source code alone cannot prove production behavior, business policy, or authorization outcomes. Unknowns remain explicit without runtime evidence. The project does not include domain knowledge, bot deployment, or a hosted search service.
+Source code alone cannot prove production behavior, business policy, or authorization outcomes. Unknowns remain explicit without runtime evidence. The project does not ship domain knowledge, bot deployment, a production FTS/vector service, or a final answer model.
 
 Current project version: `1.1.0`. New projects default to the `c2kb-file/1` file protocol; existing `0.8.3` projects remain supported. The [assurance matrix](docs/assurance-matrix.md) distinguishes tool checks from human review. The normative specification is in Simplified Chinese. Licensed under [Apache License 2.0](LICENSE).
