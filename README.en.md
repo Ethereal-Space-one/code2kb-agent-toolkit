@@ -114,4 +114,4 @@ A passing `check` does not mean the knowledge is ready to publish. The [usage gu
 
 Source code alone cannot prove production behavior, business policy, or authorization outcomes. Unknowns remain explicit without runtime evidence. The project does not include domain knowledge, bot deployment, or a hosted search service.
 
-Current project version: `1.0.0`. New projects default to the `c2kb-file/1` file protocol; existing `0.8.3` projects remain supported. The normative specification is in Simplified Chinese. Licensed under [Apache License 2.0](LICENSE).
+Current project version: `1.1.0`. New projects default to the `c2kb-file/1` file protocol; existing `0.8.3` projects remain supported. The [assurance matrix](docs/assurance-matrix.md) distinguishes tool checks from human review. The normative specification is in Simplified Chinese. Licensed under [Apache License 2.0](LICENSE).

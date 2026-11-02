@@ -10,6 +10,7 @@ import re
 
 ROOT = Path(__file__).resolve().parents[1]
 PATTERN = re.compile(r"\*\*(C2KB-[A-Z]+-[0-9]{3})\*\*")
+MATRIX_ROW = re.compile(r"^\| (C2KB-[A-Z]+-[0-9]{3}) \| (机器|记录|流程) \| .+ \|$")
 
 
 def main() -> int:
@@ -26,6 +27,12 @@ def main() -> int:
         print("规范编号检查失败：存在重复编号")
         for key in duplicates:
             print(f"- {key}")
+        return 1
+    matrix = ROOT / "docs/assurance-matrix.md"
+    rows = [MATRIX_ROW.fullmatch(line) for line in matrix.read_text(encoding="utf-8").splitlines() if line.startswith("| C2KB-")]
+    matrix_ids = [row.group(1) for row in rows if row]
+    if len(rows) != len(matrix_ids) or Counter(matrix_ids) != Counter(counts):
+        print("保证范围矩阵与规范编号不一致、重复或验证类别无效")
         return 1
     print(f"规范编号检查通过：{len(found)} 条")
     return 0

@@ -165,7 +165,12 @@ def parse_frontmatter(path: Path) -> tuple[dict[str, str], str, str]:
         key, value = match.groups()
         if key in meta:
             raise KnowledgeError(f"{path}: 重复元数据 {key}")
-        meta[key] = value.strip().strip('"\'')
+        value = value.strip()
+        if value.startswith(("'", '"')) or value.endswith(("'", '"')):
+            if len(value) < 2 or value[0] != value[-1] or value[0] not in {"'", '"'}:
+                raise KnowledgeError(f"{path}: 元数据引号须成对且同种：{key}")
+            value = value[1:-1]
+        meta[key] = value
     body = "".join(lines[end + 1 :]).replace("\r\n", "\n")
     return meta, body, original
 

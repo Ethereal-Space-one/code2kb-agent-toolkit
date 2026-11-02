@@ -1,0 +1,11 @@
+{
+  "schema_version": "0.1",
+  "subject_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+  "module_id": "example.order.query",
+  "tool": "external.security_scan",
+  "status": "passed",
+  "generated_at": "2026-11-02T00:00:00+00:00",
+  "details": {
+    "summary": "示例报告；实际使用时须按本次候选与检查结果重新生成"
+  }
+}
