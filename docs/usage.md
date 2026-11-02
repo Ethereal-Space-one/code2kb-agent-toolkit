@@ -1,6 +1,6 @@
 # Code2KB Spec 使用指南
 
-> 适用于工程 `1.0.0`：新项目默认 `c2kb-file/1`，旧 `0.8.3` 项目继续受支持。AI 的执行入口是 [`skills/extract-app-knowledge/SKILL.md`](../skills/extract-app-knowledge/SKILL.md)。
+> 适用于工程 `1.1.0`：新项目默认 `c2kb-file/1`，旧 `0.8.3` 项目继续受支持。AI 的执行入口是 [`skills/extract-app-knowledge/SKILL.md`](../skills/extract-app-knowledge/SKILL.md)。
 
 ## 工作方式
 
@@ -59,7 +59,7 @@ code2kb --version
 │   ├── 技术实现.md、接口与调用.md、方法与源码.md     # 按证据创建
 │   └── 结构化规格.md、待确认事项.md、发布清单.md
 ├── 运行证据/                                           # 可选
-├── 自动审核策略/、自动审核记录/                        # 策略审核时使用
+├── 自动审核策略/、自动审核记录/、自动审核报告/          # 策略审核时使用
 └── 发布/
 ```
 
@@ -101,7 +101,7 @@ code2kb approve --project-root /项目 --module-id example.module \
   --approval-note '审核人确认的发布范围原文'
 ```
 
-启用预授权策略时，使用 `1.1` 审核记录，先把策略和审核记录提交到项目 Git；若有 `external.*` 检查，还须把脱敏后的 JSON 报告放在项目 `自动审核报告/` 并提交。记录的 `external_reports` 中填写该报告的 `path`、`sha256`，同一检查的 `report_sha256` 必须一致。工具会复算报告原始字节摘要，但不会判断报告结论真假。历史 `1.0` 审核记录仍可核对，不能用于新增批准。随后执行：
+启用预授权策略时，使用 `1.2` 审核记录，先把策略和审核记录提交到项目 Git；若有 `external.*` 检查，还须把脱敏后的 JSON 报告放在项目 `自动审核报告/` 并提交。报告可参考[示例信封](../templates/自动审核报告.example.json)：`subject_digest` 取本次 `prepare` 返回的候选摘要，`module_id` 与 `tool` 分别指向本模块及对应 `external.*` 检查，`status` 与记录中的 `result` 相同，`generated_at` 为真实带时区生成时间且不晚于记录的 `completed_at`。记录的 `external_reports` 中填写报告的 `path`、原始字节 `sha256`，同一检查的 `report_sha256` 必须一致。工具核对身份、状态和摘要，不判断报告结论真假。历史 `1.0/1.1` 记录仍可核对，不能用于新增批准。随后执行：
 
 ```bash
 code2kb policy-review --project-root /项目 --module-id example.module \

@@ -239,7 +239,7 @@ class Governance:
             expires = date.fromisoformat(policy["expires_at"])
         except (TypeError, ValueError) as exc:
             raise ValueError("自动审核策略日期须为 YYYY-MM-DD") from exc
-        if expires < authorized or expires < date.today():
+        if expires < authorized or expires < datetime.now(timezone.utc).date():
             raise ValueError("自动审核策略已过期或日期范围无效")
         arrays = ("allowed_module_ids", "allowed_risk_levels", "required_checks", "manual_gate_categories")
         if any(not isinstance(policy[key], list) or not policy[key] or not all(isinstance(item, str) and item for item in policy[key]) or len(policy[key]) != len(set(policy[key])) for key in arrays):
@@ -263,7 +263,7 @@ class Governance:
         return record, path, digest(raw)
 
     def validate_review_record(self, module_id, manifest, policy, record, executed_by, authorized, expires):
-        if record["schema_version"] not in {"1.0", "1.1"} or not isinstance(record["run_id"], str) or not RUN_ID.fullmatch(record["run_id"]):
+        if record["schema_version"] not in {"1.0", "1.1", "1.2"} or not isinstance(record["run_id"], str) or not RUN_ID.fullmatch(record["run_id"]):
             raise ValueError("自动审核记录 schema_version 或 run_id 无效")
         if record["module_id"] != module_id or record["policy_id"] != policy["policy_id"] or record["policy_version"] != policy["policy_version"]:
             raise ValueError("自动审核记录的模块或策略版本不匹配")
@@ -290,7 +290,7 @@ class Governance:
             raise ValueError("自动审核记录 completed_at 须为带时区时间") from exc
         if completed.tzinfo is None or completed.utcoffset() is None:
             raise ValueError("自动审核记录 completed_at 须带时区")
-        completed_date = completed.date()
+        completed_date = completed.astimezone(timezone.utc).date()
         if completed_date < authorized or completed_date > expires or completed.astimezone(timezone.utc) > datetime.now(timezone.utc) + timedelta(minutes=5):
             raise ValueError("自动审核记录时间超出策略授权范围或明显在未来")
         checks = record["checks"]
@@ -312,24 +312,37 @@ class Governance:
         report_names = set()
         report_paths = set()
         for item in reports:
-            expected_fields = {"name", "result", "sha256", "path"} if record["schema_version"] == "1.1" else {"name", "result", "sha256"}
+            expected_fields = {"name", "result", "sha256", "path"} if record["schema_version"] in {"1.1", "1.2"} else {"name", "result", "sha256"}
             if not isinstance(item, dict) or set(item) != expected_fields or not isinstance(item["name"], str) or not item["name"].startswith("external.") or not CHECK_ID.fullmatch(item["name"]) or item["name"] in report_names or item["result"] != "passed" or not SHA.fullmatch(item["sha256"] if isinstance(item["sha256"], str) else ""):
                 raise ValueError("自动审核记录外部报告结构、结果或摘要无效")
-            if record["schema_version"] == "1.1":
+            if record["schema_version"] in {"1.1", "1.2"}:
                 path = self.project_json(item["path"], "自动审核报告", "自动审核报告")
                 self.git_head_matches(path, "自动审核报告")
                 if digest(path.read_bytes()) != item["sha256"]:
                     raise ValueError(f"自动审核报告内容摘要不匹配：{item['path']}")
+                if record["schema_version"] == "1.2":
+                    envelope = self.core.strict_json_object(path, label="自动审核报告")
+                    fields = {"schema_version", "subject_digest", "module_id", "tool", "status", "generated_at"}
+                    if not fields <= set(envelope) or envelope["schema_version"] != "0.1":
+                        raise ValueError("自动审核报告缺少 0.1 机器可读信封")
+                    if envelope["subject_digest"] != subject or envelope["module_id"] != module_id or envelope["tool"] != item["name"] or envelope["status"] != item["result"]:
+                        raise ValueError("自动审核报告与当前候选、模块、检查或结果不匹配")
+                    try:
+                        generated = datetime.fromisoformat(envelope["generated_at"].replace("Z", "+00:00"))
+                    except (AttributeError, TypeError, ValueError) as exc:
+                        raise ValueError("自动审核报告生成时间 generated_at 须为带时区时间") from exc
+                    if generated.tzinfo is None or generated.utcoffset() is None or generated > completed:
+                        raise ValueError("自动审核报告生成时间无效或晚于审核完成时间")
                 report_paths.add(path)
             report_names.add(item["name"])
         required_external = {item for item in policy["required_checks"] if item.startswith("external.")}
         if not required_external <= report_names:
             raise ValueError("自动审核记录缺少外部检查报告摘要")
         declared_external = {item for item in found if item.startswith("external.")}
-        if record["schema_version"] == "1.1" and declared_external != report_names:
+        if record["schema_version"] in {"1.1", "1.2"} and declared_external != report_names:
             raise ValueError("自动审核记录的外部检查与报告文件须逐项对应")
         reports_by_name = {item["name"]: item for item in reports}
-        compared = declared_external if record["schema_version"] == "1.1" else required_external
+        compared = declared_external if record["schema_version"] in {"1.1", "1.2"} else required_external
         if any(found[name]["report_sha256"] != reports_by_name[name]["sha256"] for name in compared):
             raise ValueError("自动审核记录的外部检查摘要与报告摘要不一致")
         self.scan_sensitive_files(report_paths)
@@ -400,7 +413,8 @@ class Governance:
                 raise ValueError(f"运行证据缺少模块、环境或限定事实：{path}")
             observed = date.fromisoformat(meta.get("observed_at", ""))
             expiry = date.fromisoformat(meta["valid_until"]) if meta.get("valid_until") else None
-            if observed > date.today() or (expiry and expiry < observed):
+            today_utc = datetime.now(timezone.utc).date()
+            if observed > today_utc or (expiry and expiry < observed):
                 raise ValueError(f"运行证据日期范围无效：{path}")
             if meta.get("evidence_type") == "business":
                 required = ("source_type", "source_title", "source_locator", "source_sha256", "content_mode", "intent_ids", "valid_until")
@@ -427,7 +441,7 @@ class Governance:
                 match = re.search(rf"(?ms)^## {heading}\n(.+?)(?=^## |\Z)", body)
                 if not match or not match.group(1).strip():
                     raise ValueError(f"运行证据缺少有效章节 {heading}：{path}")
-            self.evidence[evidence_id] = {"meta": meta, "path": path, "original": original, "sources": sources, "expired": bool(expiry and expiry < date.today())}
+            self.evidence[evidence_id] = {"meta": meta, "path": path, "original": original, "sources": sources, "expired": bool(expiry and expiry < today_utc)}
         self.scan_sensitive_files(item["path"] for item in self.evidence.values())
 
     def evidence_ref(self, evidence_id, module_id, fact_id=None, kind=None, for_publish=False):
@@ -835,8 +849,8 @@ class Governance:
             raise ValueError("发布清单候选摘要缺失或已变化；重新 prepare")
         policy, policy_path, policy_sha, authorized, expires = self.read_policy(require_head=True)
         record, record_path, record_sha = self.read_review_record(evidence_file)
-        if record["schema_version"] == "1.0":
-            raise ValueError("新策略审核须使用 1.1 记录；旧 1.0 记录仅供历史复核")
+        if record["schema_version"] != "1.2":
+            raise ValueError("新策略审核须使用 1.2 记录；旧 1.0/1.1 记录仅供历史复核")
         reviewed_at = self.validate_review_record(module_id, manifest, policy, record, executed_by, authorized, expires)
         candidate_paths = [self.source / doc.relative for doc, heading in rows.values() if heading == "## 发布文件"]
         self.scan_sensitive_files([*candidate_paths, policy_path, record_path])

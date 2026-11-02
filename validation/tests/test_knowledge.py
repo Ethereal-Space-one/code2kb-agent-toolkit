@@ -960,6 +960,19 @@ class KnowledgeTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("问答自测未通过", result.stderr)
 
+    def test_frontmatter_quotes_must_be_matching_pairs(self):
+        path = self.project / "quoted.md"
+        write(path, "---\nexample: 'value: with colon'\n---\nbody\n")
+        self.assertEqual(core.parse_frontmatter(path)[0]["example"], "value: with colon")
+        for value in ("'unclosed", 'unclosed"', "''quoted''"):
+            with self.subTest(value=value):
+                write(path, f"---\nexample: {value}\n---\nbody\n")
+                if value == "''quoted''":
+                    self.assertEqual(core.parse_frontmatter(path)[0]["example"], "'quoted'")
+                else:
+                    with self.assertRaisesRegex(core.KnowledgeError, "引号须成对"):
+                        core.parse_frontmatter(path)
+
 
 if __name__ == "__main__":
     unittest.main()
