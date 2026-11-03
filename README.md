@@ -120,4 +120,4 @@ code2kb audit-release --project-root /path/to/knowledge-project
 
 源码不能单独证明线上运行、业务政策或授权结果；缺少运行证据时须保留未知项。项目不自带具体业务知识、机器人部署、生产 FTS／向量服务或最终回答模型。
 
-当前工程版本：`1.1.0`。新项目默认文件协议为 `c2kb-file/1`；旧 `0.8.3` 项目仍受支持。[保证范围矩阵](docs/assurance-matrix.md)区分工具检查与人工复核。本项目采用 [Apache License 2.0](LICENSE)。
+当前工程版本：`1.2.0`。新项目默认文件协议为 `c2kb-file/1`；旧 `0.8.3` 项目仍受支持。[保证范围矩阵](docs/assurance-matrix.md)区分工具检查与人工复核。本项目采用 [Apache License 2.0](LICENSE)。

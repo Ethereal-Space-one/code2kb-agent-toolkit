@@ -164,6 +164,22 @@
     "C2KB-REVIEW-006": [
       "validation/tests/test_governance.py::GovernanceTests.test_policy_review_requires_external_report_when_policy_requests_it"
     ],
+    "C2KB-REVIEW-007": [
+      "validation/tests/test_verifier.py::VerifierProjectTests.test_tampered_envelope_is_rejected",
+      "validation/tests/test_verifier.py::VerifierUnitTests.test_envelope_demands_independence_and_exact_coverage"
+    ],
+    "C2KB-REVIEW-008": [
+      "validation/tests/test_verifier.py::VerifierProjectTests.test_tampered_envelope_is_rejected",
+      "validation/tests/test_verifier.py::VerifierUnitTests.test_envelope_demands_independence_and_exact_coverage"
+    ],
+    "C2KB-REVIEW-009": [
+      "validation/tests/test_verifier.py::VerifierProjectTests.test_verifier_that_misses_injected_faults_cannot_be_used",
+      "validation/tests/test_verifier.py::VerifierUnitTests.test_calibration_report_thresholds_age_and_arithmetic"
+    ],
+    "C2KB-REVIEW-010": [
+      "validation/tests/test_verifier.py::VerifierProjectTests.test_risk_floor_and_semantic_quality_gate",
+      "validation/tests/test_verifier.py::VerifierUnitTests.test_risk_floor_only_raises"
+    ],
     "C2KB-ROLE-001": [
       "validation/tests/test_knowledge.py::KnowledgeTests.test_publish_isolated_views_and_no_overwrite"
     ],

@@ -27,6 +27,7 @@ try:
     from .governance import Governance, json_text, atomic_write, digest, scan_business_terms
     from . import retrieval_build, retrieval_evaluate, retrieval_audit, retrieval_profile, retrieval_query, relation_release, relation_model, relation_upgrade, relation_upgrade_project, fact_render, run_state, workflow, host_adapter, protocol, protocol_migration, upgrade_plan
     from .retrieval_model import strict_json as retrieval_json
+    from . import verifier
 except ImportError:  # 兼容直接执行 validation/knowledge.py
     from business_urls import contains_source_repository_url
     from adapters.ts_java import scan as scan_candidates
@@ -35,6 +36,7 @@ except ImportError:  # 兼容直接执行 validation/knowledge.py
     from governance import Governance, json_text, atomic_write, digest, scan_business_terms
     import retrieval_build, retrieval_evaluate, retrieval_audit, retrieval_profile, retrieval_query, relation_release, relation_model, relation_upgrade, relation_upgrade_project, fact_render, run_state, workflow, host_adapter, protocol, protocol_migration, upgrade_plan
     from retrieval_model import strict_json as retrieval_json
+    import verifier
 
 
 _VERSION_FILE = Path(__file__).resolve().parents[1] / "VERSION"
@@ -53,6 +55,7 @@ ACTIONS = (
     "relation-audit", "analyze-candidates", "evidence-snapshot", "render-facts", "preview-upgrade",
     "relation-report", "recover", "run-create", "run-status", "run-next", "run-begin", "run-complete",
     "run-resume", "run-cancel", "run-execute", "host-next", "migrate-protocol",
+    "evidence-pack", "verifier-calibrate",
 )
 TYPES = {
     "模块概览.md": "overview",
@@ -1220,6 +1223,16 @@ def _main() -> int:
             sub.add_argument("--module-id", required=True)
         if action == "impact":
             sub.add_argument("--module-id")
+        if action == "evidence-pack":
+            sub.add_argument("--module-id", required=True)
+            sub.add_argument("--kind", choices=tuple(sorted(verifier.SHORT_KINDS)), required=True, help="独立验证的类型")
+        if action == "verifier-calibrate":
+            sub.add_argument("--seed", type=int, default=1)
+            sub.add_argument("--max-facts", type=int, default=20)
+            sub.add_argument("--key-out", type=Path, help="生成校准题时保存答案键的位置；须在项目目录之外")
+            sub.add_argument("--pack", type=Path, help="评分时：先前生成的校准题")
+            sub.add_argument("--key", type=Path, help="评分时：先前保存的答案键")
+            sub.add_argument("--answers", type=Path, help="评分时：验证者返回的答案；提供后进入评分模式")
         if action == "prepare":
             sub.add_argument("--business-topics")
             sub.add_argument("--business-unknowns")
@@ -1251,7 +1264,7 @@ def _main() -> int:
             result.pop("after", None)
             print(json_text(result))
             return 0
-        if args.action in {"confirm-claims", "prepare", "approve", "policy-review", "publish", "retrieval-build", "retrieval-evaluate", "recover", "run-create", "run-begin", "run-complete", "run-resume", "run-cancel"}:
+        if args.action in {"confirm-claims", "prepare", "approve", "policy-review", "publish", "retrieval-build", "retrieval-evaluate", "recover", "run-create", "run-begin", "run-complete", "run-resume", "run-cancel"} or (args.action == "verifier-calibrate" and args.answers):
             lock = run_state.project_lock(project)
             lock.__enter__()
             locked = True
@@ -1464,7 +1477,7 @@ def _main() -> int:
         docs, outline = read_documents(source)
         verify_repos(config)
         adapter_entries = registered_adapter_entries(config)
-        preparing = args.action in {"impact", "confirm-claims", "prepare", "approve", "policy-review"}
+        preparing = args.action in {"impact", "confirm-claims", "prepare", "approve", "policy-review", "evidence-pack", "verifier-calibrate"}
         validation_docs = [replace(doc, meta={**doc.meta, "review_status": "draft"}) if preparing and doc.doc_type in BUSINESS | ENGINEERING else doc for doc in docs]
         selected = validate_project(validation_docs, outline, config, adapter_entries, for_publish=args.action == "publish", entry_coverage=args.action != "impact")
         governance = Governance(project, source, config, docs, outline, sys.modules[__name__])
@@ -1494,6 +1507,30 @@ def _main() -> int:
             return 0
         if args.action == "impact":
             print(json_text({"pending_impacts": governance.impacts(args.module_id)}))
+            return 0
+        if args.action == "evidence-pack":
+            print(json_text(governance.evidence_pack(args.module_id, args.kind)))
+            return 0
+        if args.action == "verifier-calibrate":
+            if args.answers:
+                if not args.pack or not args.key:
+                    raise KnowledgeError("评分模式须同时提供 --pack、--key 和 --answers")
+                loaded = [strict_json_object(path, label=label) for path, label in ((args.pack, "校准题"), (args.key, "答案键"), (args.answers, "校准答案"))]
+                with run_state.GovernanceTransaction(project, project / "自动审核报告" / "校准", args.action):
+                    result = governance.calibration_report(*loaded)
+                print(json_text(result))
+                return 0
+            if not args.key_out:
+                raise KnowledgeError("生成校准题须用 --key-out 指定答案键保存位置")
+            key_path = args.key_out.resolve()
+            if key_path == project or project in key_path.parents:
+                raise KnowledgeError("答案键须保存在项目目录之外，避免被验证者读取")
+            if key_path.exists():
+                raise KnowledgeError("答案键文件已存在；不覆盖")
+            pack, key = governance.calibration_pack(args.seed, args.max_facts)
+            key_path.parent.mkdir(parents=True, exist_ok=True)
+            key_path.write_text(json_text(key), encoding="utf-8")
+            print(json_text(pack))
             return 0
         if args.action == "confirm-claims":
             module_dir = source / governance.spec(args.module_id).relative.parent

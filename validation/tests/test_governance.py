@@ -290,7 +290,7 @@ class GovernanceTests(unittest.TestCase):
         self.enable_policy(required_checks=required)
         subject = self.prepare_policy_candidate()
         cases = [
-            ({"schema_version": "0.2"}, "机器可读信封"),
+            ({"schema_version": "0.3"}, "机器可读信封"),
             ({"subject_digest": "0" * 64}, "当前候选"),
             ({"module_id": "example.other"}, "当前候选"),
             ({"tool": "external.other_scan"}, "当前候选"),

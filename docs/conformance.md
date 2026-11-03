@@ -7,7 +7,7 @@
 本仓库通过以下门禁维护一致性：
 
 - 单元测试覆盖有效与无效项目、两种审核模式和发布审计；
-- [`conformance/`](../conformance/README.md) 提供跨实现输入、预期结果、62 条要求覆盖表和兼容声明模板；各条保证边界见[保证范围矩阵](assurance-matrix.md)。
+- [`conformance/`](../conformance/README.md) 提供跨实现输入、预期结果、66 条要求覆盖表和兼容声明模板；各条保证边界见[保证范围矩阵](assurance-matrix.md)。
 - `scripts/check_spec_ids.py` 检查规范编号唯一性；
 - `scripts/check_conformance.py --check-expected` 执行夹具并对比确定性报告；
 - `scripts/check_markdown_links.py` 检查本地链接；

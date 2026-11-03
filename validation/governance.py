@@ -14,9 +14,9 @@ from types import SimpleNamespace
 from urllib.parse import quote
 
 try:
-    from . import relation_model, fact_render, run_state
+    from . import relation_model, fact_render, run_state, verifier
 except ImportError:
-    import relation_model, fact_render, run_state
+    import relation_model, fact_render, run_state, verifier
 
 
 FILES_HEADER = "| 文件 | document_type | 内容摘要 |"
@@ -24,6 +24,7 @@ CLAIMS_HEADER = "| fact_id | 知识文件 | 结论摘要 | 文件摘要 | 复核
 MATCH_HEADER = "| api_id | 匹配状态 | 调用方证据 | 服务方证据 | 部署配对 | 差异或边界 |"
 AUDIENCE_HEADER = "| entry_id | 受众 | 范围 |"
 FACT_HEADER = "| fact_id | 单一结论与条件 | 证据等级 | 固定提交锚点 | 影响的知识文件 |"
+QA_HEADER = "| 类别 | 真实问题 | 预期行为 | 实测结果 | 结论 |"
 RELATION_HEADER = "| 文件 | 内容摘要 |"
 RELATION_REVIEW_HEADER = "| 文件 | 内容摘要 | 复核结果 |"
 SHA = re.compile(r"[0-9a-f]{64}\Z")
@@ -144,7 +145,7 @@ def draft_review_meta(original: str, *, keep_subject: bool = False) -> str:
     return replace_meta(clear_review_meta(original, keep_subject=keep_subject), {"review_status": "draft"})
 
 
-def strict_json(path: Path, allowed: set[str], label: str) -> tuple[dict, bytes]:
+def strict_json(path: Path, allowed: set[str], label: str, optional: frozenset = frozenset()) -> tuple[dict, bytes]:
     raw = path.read_bytes()
 
     def pairs(items):
@@ -159,7 +160,7 @@ def strict_json(path: Path, allowed: set[str], label: str) -> tuple[dict, bytes]
         value = json.loads(raw.decode("utf-8"), object_pairs_hook=pairs)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ValueError(f"{label}不是有效 UTF-8 JSON") from exc
-    if not isinstance(value, dict) or set(value) != allowed:
+    if not isinstance(value, dict) or not (allowed <= set(value) <= allowed | optional):
         raise ValueError(f"{label}字段不完整或含未知字段")
     return value, raw
 
@@ -226,9 +227,13 @@ class Governance:
         if require_head:
             self.git_head_matches(config_path, "知识库配置")
             self.git_head_matches(path, "自动审核策略")
-        policy, raw = strict_json(path, POLICY_FIELDS, "自动审核策略")
-        if policy["schema_version"] != "1.0" or not isinstance(policy["policy_id"], str) or not POLICY_ID.fullmatch(policy["policy_id"]):
+        policy, raw = strict_json(path, POLICY_FIELDS, "自动审核策略", frozenset({"verifier_requirements"}))
+        if policy["schema_version"] not in {"1.0", "1.1"} or not isinstance(policy["policy_id"], str) or not POLICY_ID.fullmatch(policy["policy_id"]):
             raise ValueError("自动审核策略 schema_version 或 policy_id 无效")
+        if (policy["schema_version"] == "1.1") != ("verifier_requirements" in policy):
+            raise ValueError("自动审核策略 1.1 须包含 verifier_requirements，1.0 不得包含")
+        if "verifier_requirements" in policy:
+            verifier.validate_requirements(policy["verifier_requirements"])
         if not isinstance(policy["policy_version"], str) or not POLICY_VERSION.fullmatch(policy["policy_version"]):
             raise ValueError("自动审核策略 policy_version 须为三段数字版本")
         for key in ("policy_owner", "authorization_note"):
@@ -252,6 +257,8 @@ class Governance:
         checks = set(policy["required_checks"])
         if not NATIVE_CHECKS <= checks or any(not CHECK_ID.fullmatch(item) or (item not in NATIVE_CHECKS and not item.startswith("external.")) for item in checks):
             raise ValueError("自动审核策略必须包含全部参考实现内置检查，外部检查须使用 external.*")
+        if "verifier_requirements" in policy and not set(policy["verifier_requirements"]["required_kinds"]) <= checks:
+            raise ValueError("自动审核策略的 required_checks 须包含 verifier_requirements 要求的全部验证类型")
         if any(not re.fullmatch(r"[a-z][a-z0-9_]{1,63}", item) for item in policy["manual_gate_categories"]):
             raise ValueError("自动审核策略 manual_gate_categories 无效")
         self.scan_sensitive_files([config_path, path])
@@ -276,6 +283,14 @@ class Governance:
         if not isinstance(record["risk_level"], str) or record["risk_level"] not in RISK_LEVELS or record["risk_level"] not in policy["allowed_risk_levels"]:
             raise ValueError("自动审核记录风险等级不在策略允许范围")
         spec = self.spec(module_id)
+        requirements = policy.get("verifier_requirements")
+        if requirements:
+            facts = self.core.table_rows(spec.body, "## 入口与调用链", FACT_HEADER)
+            floor = verifier.risk_floor([row[1] for row in facts])
+            if verifier.RISK_RANK[record["risk_level"]] < verifier.RISK_RANK[floor]:
+                raise ValueError("自动审核记录风险等级低于由规格内容推出的下限；执行者只能上调风险等级")
+            if floor == "high" and not self.core.semantic_quality_enabled(self.config, module_id):
+                raise ValueError("涉及权限、归属、金额、名额、指标或状态的模块须启用 semantic_quality 后才能策略审核")
         roles = self.core.document_revisions(spec, self.config)
         expected_sources = {role: self.config["repositories"][role]["commit"] for role in sorted(roles)}
         if record["source_revisions"] != expected_sources:
@@ -323,8 +338,8 @@ class Governance:
                 if record["schema_version"] == "1.2":
                     envelope = self.core.strict_json_object(path, label="自动审核报告")
                     fields = {"schema_version", "subject_digest", "module_id", "tool", "status", "generated_at"}
-                    if not fields <= set(envelope) or envelope["schema_version"] != "0.1":
-                        raise ValueError("自动审核报告缺少 0.1 机器可读信封")
+                    if not fields <= set(envelope) or envelope["schema_version"] not in {"0.1", verifier.ENVELOPE_VERSION}:
+                        raise ValueError("自动审核报告缺少 0.1 或 0.2 机器可读信封")
                     if envelope["subject_digest"] != subject or envelope["module_id"] != module_id or envelope["tool"] != item["name"] or envelope["status"] != item["result"]:
                         raise ValueError("自动审核报告与当前候选、模块、检查或结果不匹配")
                     try:
@@ -333,6 +348,10 @@ class Governance:
                         raise ValueError("自动审核报告生成时间 generated_at 须为带时区时间") from exc
                     if generated.tzinfo is None or generated.utcoffset() is None or generated > completed:
                         raise ValueError("自动审核报告生成时间无效或晚于审核完成时间")
+                    if envelope["schema_version"] == verifier.ENVELOPE_VERSION:
+                        report_paths.update(self.validate_verifier_report(item["name"], envelope, module_id, manifest, record, policy, spec))
+                    elif requirements and item["name"] in requirements["required_kinds"]:
+                        raise ValueError(f"策略要求 {item['name']} 使用 0.2 验证者信封")
                 report_paths.add(path)
             report_names.add(item["name"])
         required_external = {item for item in policy["required_checks"] if item.startswith("external.")}
@@ -367,6 +386,80 @@ class Governance:
         self.core.validate_qa(spec)
         self.policy_inputs.update(report_paths)
         return completed_date.isoformat()
+
+    def verifier_expected(self, kind, manifest, spec):
+        """Recompute the exact items an independent verifier must cover for this candidate."""
+        if kind == verifier.KIND_CLAIM:
+            rows = self.core.table_rows(spec.body, "## 入口与调用链", FACT_HEADER)
+            return verifier.claim_items([(row[0], row[1], row[2], row[3]) for row in rows], self.config["repositories"])
+        if kind == verifier.KIND_QA:
+            rows = self.core.table_rows(spec.body, "## 问答自测", QA_HEADER)
+            return verifier.qa_items([(row[0], row[1], row[2]) for row in rows])
+        rows = self.manifest_rows(manifest)
+        return verifier.leak_items(sorted(
+            (doc.relative.as_posix(), content_digest(doc.original))
+            for doc, heading in rows.values() if heading == "## 发布文件" and doc.doc_type in self.core.BUSINESS
+        ))
+
+    def validate_verifier_report(self, name, envelope, module_id, manifest, record, policy, spec):
+        if name not in verifier.VERIFIER_KINDS:
+            raise ValueError(f"0.2 验证者信封只适用于标准验证类型：{name}")
+        expected = self.verifier_expected(name, manifest, spec)
+        verifier.validate_envelope(name, envelope, expected, executed_by=record["executed_by"], policy_owner=policy["policy_owner"])
+        requirements = policy.get("verifier_requirements")
+        if requirements and name == verifier.KIND_CLAIM:
+            return {self.validate_calibration(envelope, requirements)}
+        return set()
+
+    def validate_calibration(self, envelope, requirements):
+        ref = envelope.get("calibration")
+        if (not isinstance(ref, dict) or set(ref) != {"path", "sha256"} or not isinstance(ref["path"], str)
+                or not ref["path"].startswith("自动审核报告/校准/") or not isinstance(ref["sha256"], str) or not SHA.fullmatch(ref["sha256"])):
+            raise ValueError("策略要求验证者引用 自动审核报告/校准/ 下已提交的校准报告 calibration{path,sha256}")
+        path = self.project_json(ref["path"], "校准报告", "自动审核报告")
+        self.git_head_matches(path, "校准报告")
+        if digest(path.read_bytes()) != ref["sha256"]:
+            raise ValueError(f"校准报告内容摘要不匹配：{ref['path']}")
+        report = self.core.strict_json_object(path, label="校准报告")
+        verifier.validate_calibration(report, verifier_id=envelope["verifier"]["id"], requirements=requirements)
+        return path
+
+    def evidence_pack(self, module_id, short_kind):
+        """Minimal, read-only input for an independent verifier of one prepared candidate."""
+        kind = verifier.SHORT_KINDS[short_kind]
+        manifest = next((doc for doc in self.module_docs(module_id) if doc.doc_type == "release_manifest"), None)
+        if not manifest or manifest.meta.get("review_status") != "draft":
+            raise ValueError("先 prepare 生成 draft 模块发布清单")
+        subject = manifest.meta.get("review_subject_digest")
+        if not SHA.fullmatch(subject or "") or subject != review_subject_digest(manifest.original):
+            raise ValueError("发布清单候选摘要缺失或已变化；重新 prepare")
+        return verifier.build_pack(kind, subject, module_id, self.verifier_expected(kind, manifest, self.spec(module_id)))
+
+    def calibration_entries(self):
+        entries = []
+        for doc in self.docs:
+            if doc.doc_type != "spec":
+                continue
+            rows = self.core.table_rows(doc.body, "## 入口与调用链", FACT_HEADER)
+            for item in verifier.claim_items([(row[0], row[1], row[2], row[3]) for row in rows], self.config["repositories"]):
+                item["ref"] = f"{doc.module_id}:{item['fact_id']}"
+                entries.append(item)
+        return entries
+
+    def calibration_pack(self, seed, max_facts):
+        if type(seed) is not int or type(max_facts) is not int or max_facts < 1:
+            raise ValueError("seed 与 max-facts 须为整数，且 max-facts 至少为 1")
+        return verifier.build_calibration(self.calibration_entries(), seed, max_facts)
+
+    def calibration_report(self, pack, key, answers):
+        report = verifier.score_calibration(pack, key, answers)
+        slug = re.sub(r"[^A-Za-z0-9._-]", "_", report["verifier_id"])[:40]
+        name = f"自动审核报告/校准/{slug}-{digest(report['verifier_id'])[:8]}-{report['seed']}.json"
+        text = json_text(report)
+        atomic_write(self.project / Path(*PurePosixPath(name).parts), text)
+        return {"path": name, "sha256": digest(text.encode("utf-8")), "recall": report["recall"],
+                "false_positive_rate": report["false_positive_rate"],
+                "note": "报告须提交到 Git 后，验证者信封才能引用；通过率不证明该验证者能发现真实项目中的所有错误"}
 
     def module_docs(self, module_id):
         items = [doc for doc in self.docs if doc.module_id == module_id]

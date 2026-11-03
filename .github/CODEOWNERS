@@ -1,0 +1,7 @@
+# 治理、审核与发布相关路径须经维护者审阅
+* @Ethereal-Space-one
+/validation/governance.py @Ethereal-Space-one
+/validation/verifier.py @Ethereal-Space-one
+/spec/ @Ethereal-Space-one
+/conformance/ @Ethereal-Space-one
+/.github/ @Ethereal-Space-one
