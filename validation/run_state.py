@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from contextvars import ContextVar
-import fcntl
 import hashlib
 import json
 import os
@@ -18,6 +17,11 @@ import socket
 import tempfile
 import uuid
 
+
+try:
+    import fcntl
+except ImportError:  # Windows 等无 flock 的平台：只读命令可用，修改命令明确拒绝
+    fcntl = None
 
 SCHEMA = "0.1"
 _active_transaction: ContextVar["GovernanceTransaction | None"] = ContextVar("code2kb_transaction", default=None)
@@ -65,6 +69,8 @@ def project_lock(project: Path):
     A persistent lock file avoids inode replacement races. flock releases the
     lock automatically if the process dies, while transaction journals remain.
     """
+    if fcntl is None:
+        raise ValueError("当前平台不支持 flock 项目锁；修改类命令请在 Linux、macOS 或 WSL 中运行，只读检查命令不受影响")
     resolved = project.resolve()
     if _held_project_lock.get() == resolved:
         yield

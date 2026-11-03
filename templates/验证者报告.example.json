@@ -1,0 +1,39 @@
+{
+  "schema_version": "0.2",
+  "subject_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+  "module_id": "example.order.query",
+  "tool": "external.claim_entailment",
+  "status": "passed",
+  "generated_at": "2026-11-03T00:00:00+00:00",
+  "verifier": {
+    "id": "replace-with-independent-verifier",
+    "kind": "ai",
+    "session_id": "replace-with-session",
+    "model_family": "optional"
+  },
+  "subject_producers": [
+    "replace-with-author-identity"
+  ],
+  "coverage": {
+    "items_expected": 1,
+    "items_checked": 1
+  },
+  "items": [
+    {
+      "fact_id": "FACT-001",
+      "claim_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "anchors": [
+        {
+          "anchor": "frontend:src/example.ts:10",
+          "snippet_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "verdict": "supported",
+      "reason": ""
+    }
+  ],
+  "calibration": {
+    "path": "自动审核报告/校准/replace.json",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  }
+}

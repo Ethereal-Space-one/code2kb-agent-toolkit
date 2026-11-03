@@ -1,6 +1,6 @@
 # Code2KB Spec 使用指南
 
-> 适用于工程 `1.1.0`：新项目默认 `c2kb-file/1`，旧 `0.8.3` 项目继续受支持。AI 的执行入口是 [`skills/extract-app-knowledge/SKILL.md`](../skills/extract-app-knowledge/SKILL.md)。
+> 适用于工程 `1.2.0`：新项目默认 `c2kb-file/1`，旧 `0.8.3` 项目继续受支持。AI 的执行入口是 [`skills/extract-app-knowledge/SKILL.md`](../skills/extract-app-knowledge/SKILL.md)。
 
 ## 工作方式
 
@@ -108,6 +108,33 @@ code2kb policy-review --project-root /项目 --module-id example.module \
   --evidence-file 自动审核记录/run-id/example.module.json \
   --executed-by ci-bot
 ```
+
+
+### 可选：独立验证者（1.2）
+
+策略审核默认只核对记录与摘要。若希望由另一方（另一个 AI 会话、CI 服务或人）逐条检查“结论是否被所引源码支持”，在策略中使用 `1.1`，参考[示例策略](../templates/自动审核策略-验证者.example.json)。流程如下：
+
+1. 作者 AI 完成 `prepare`。任何人都可以运行只读命令生成验证包，验证者**只拿这份包**，看不到作者的推理：
+
+```bash
+code2kb evidence-pack --project-root /项目 --module-id example.module --kind claim_entailment
+```
+
+`--kind` 还可取 `qa_replay`（回放问答自测）和 `leak_probe`（检查业务文件是否泄露源码细节）。包内的每一项已带固定提交的源码片段、结论文字摘要和片段摘要。
+
+2. 首次使用某个验证者前先校准：工具从项目自己的 `CODE_VERIFIED` 事实生成含注入错误的题目，答案键保存在项目目录之外，不让验证者读到：
+
+```bash
+code2kb verifier-calibrate --project-root /项目 --key-out /项目之外/答案键.json > 校准题.json
+# 验证者对校准题作答，得到 答案.json，形如 {"verifier": {"id": "..."}, "items": [{"item_id": "CAL-0001", "verdict": "supported"}]}
+code2kb verifier-calibrate --project-root /项目 --pack 校准题.json --key /项目之外/答案键.json --answers 答案.json
+```
+
+校准报告写入 `自动审核报告/校准/`；提交到 Git 后才可被引用。
+
+3. 验证者按[示例信封](../templates/验证者报告.example.json)填写报告：原样带回每项的摘要，给出 `verdict`，非通过结论必须写原因，并在 `calibration` 中引用其校准报告。报告与审核记录一并提交后运行 `policy-review`。
+
+工具会重新计算应查项，拒绝缺项、重复项、改动过的结论文字或片段、与候选不符的摘要，以及与作者、执行者或策略授权人相同的验证者身份；策略还可设定校准的最低抓取率、最高误报率和有效期。规格结论含“权限”“归属”“金额”“名额”“指标”“状态”时，风险等级不得低于 `high`，且须启用 `semantic_quality`。这些检查**不判断结论真假**，也不证明验证者在真实项目上不会漏判；验证者只要给出不通过的结论，策略审核就会被拒绝，该模块保持草稿。
 
 发布和审计：
 

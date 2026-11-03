@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.1",
+  "policy_id": "example-auto-review-v2",
+  "policy_version": "1.0.0",
+  "policy_owner": "replace-with-real-owner",
+  "authorized_at": "2026-10-17",
+  "authorization_note": "替换为真实的预授权边界；模板本身不是有效授权",
+  "expires_at": "2027-10-17",
+  "allowed_module_ids": [
+    "*"
+  ],
+  "allowed_risk_levels": [
+    "low",
+    "medium"
+  ],
+  "required_checks": [
+    "cross_module_consistency",
+    "external.claim_entailment",
+    "impact_clear",
+    "knowledge_check",
+    "qa_four_categories",
+    "sensitive_scan",
+    "source_traceability"
+  ],
+  "manual_gate_categories": [
+    "security_boundary",
+    "business_policy",
+    "financial_policy",
+    "runtime_conflict",
+    "source_gap"
+  ],
+  "verifier_requirements": {
+    "required_kinds": [
+      "external.claim_entailment"
+    ],
+    "min_calibration_recall": 0.9,
+    "max_calibration_false_positive_rate": 0.1,
+    "min_calibration_faults": 8,
+    "calibration_max_age_days": 30
+  }
+}

@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -218,6 +219,16 @@ core.main()
         subject = example.prepare_policy_candidate()
         record = example.policy_record(subject)
         self.crash_command(example, "policy-review", "--evidence-file", record.relative_to(example.project).as_posix(), "--executed-by", "ci-bot")
+
+
+class PlatformTests(unittest.TestCase):
+    def test_project_lock_refuses_clearly_without_flock(self):
+        with tempfile.TemporaryDirectory() as temp:
+            with unittest.mock.patch.object(run_state, "fcntl", None):
+                with self.assertRaisesRegex(ValueError, "flock"):
+                    with run_state.project_lock(Path(temp)):
+                        pass
+            self.assertFalse((Path(temp) / ".code2kb").exists())
 
 
 if __name__ == "__main__":
