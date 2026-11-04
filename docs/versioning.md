@@ -21,3 +21,5 @@ Code2KB 使用三个独立版本：
 显式迁移规则见[兼容迁移计划](protocol-id-migration-plan.md)和 [0.7 实施计划](0.7.0-implementation-plan.md)。公开发布的提交以 Git 标签与 Release 为准。
 
 当前公开仓库从 `v0.2.0` 开始保留可获取的发布标签。`0.1.0` 只作为变更记录中的历史版本说明，不承诺存在可获取的标签、Release 或迁移工具。版本兼容关系见[兼容性说明](compatibility.md)。
+
+1.2.0 的英文适配后续补充增补可选 `content_language`（配置与业务／研发正文）；这不是对必填字段、ID、审核状态机或版本清单 Schema 的改写，但旧实现不保证读取新可选字段。本次作为 1.2.0 主分支补充，不移动已有发行标签或替换原始下载；详见[英文适配计划](english-usage-output-plan.md)。

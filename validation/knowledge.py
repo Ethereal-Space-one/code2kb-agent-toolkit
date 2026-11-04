@@ -27,7 +27,7 @@ try:
     from .governance import Governance, json_text, atomic_write, digest, scan_business_terms
     from . import retrieval_build, retrieval_evaluate, retrieval_audit, retrieval_profile, retrieval_query, relation_release, relation_model, relation_upgrade, relation_upgrade_project, fact_render, run_state, workflow, host_adapter, protocol, protocol_migration, upgrade_plan
     from .retrieval_model import strict_json as retrieval_json
-    from . import verifier
+    from . import verifier, content_language
 except ImportError:  # 兼容直接执行 validation/knowledge.py
     from business_urls import contains_source_repository_url
     from adapters.ts_java import scan as scan_candidates
@@ -36,7 +36,7 @@ except ImportError:  # 兼容直接执行 validation/knowledge.py
     from governance import Governance, json_text, atomic_write, digest, scan_business_terms
     import retrieval_build, retrieval_evaluate, retrieval_audit, retrieval_profile, retrieval_query, relation_release, relation_model, relation_upgrade, relation_upgrade_project, fact_render, run_state, workflow, host_adapter, protocol, protocol_migration, upgrade_plan
     from retrieval_model import strict_json as retrieval_json
-    import verifier
+    import verifier, content_language
 
 
 _VERSION_FILE = Path(__file__).resolve().parents[1] / "VERSION"
@@ -78,7 +78,7 @@ POLICY_METADATA = {
     "review_mode", "review_policy", "policy_version", "policy_owner", "executed_by",
     "review_evidence", "review_evidence_digest", "policy_digest",
 }
-BUSINESS_METADATA = {"module_id", "scene_id", "document_type", "review_status", "applicability", "reviewed_by", "reviewed_at", "aliases"} | POLICY_METADATA
+BUSINESS_METADATA = {"module_id", "scene_id", "document_type", "review_status", "applicability", "reviewed_by", "reviewed_at", "aliases", "content_language"} | POLICY_METADATA
 STATES = {"待归类", "待提取", "待核查", "知识草稿", "可发布", "已发布"}
 ENTRY_TYPES = {"页面", "按钮", "自动", "手势", "动态", "后端入口", "HTTP入口", "消息入口", "定时入口", "命令入口", "其他"}
 ENTRY_STATES = {"已归类", "待核查"}
@@ -101,7 +101,7 @@ TECHNICAL = re.compile(
     r"```|\b(?:BE|FE|UC|API|METHOD|FACT|INT|EVID)-[A-Za-z0-9-]+|\bfact_id\b|\b(?:GET|POST|PUT|PATCH|DELETE)\s+/|"
     r"\b(?:SELECT|INSERT|UPDATE|DELETE)\s+.{0,40}\b(?:FROM|INTO|SET)\b|"
     r"\.(?:java|php|vue|tsx?|jsx?)(?:\b|:)|"
-    r"(?:源码|代码|接口|类名|数据库字段|SQL|commit|Git 提交|技术实现\.md|接口与调用\.md|方法与源码\.md|结构化规格\.md|待确认事项\.md)|"
+    r"(?:源码|代码|接口|类名|数据库字段|(?<![A-Za-z])SQL(?![A-Za-z])|(?<![A-Za-z])commit(?![A-Za-z])|Git 提交|技术实现\.md|接口与调用\.md|方法与源码\.md|结构化规格\.md|待确认事项\.md)|"
     r"\b[a-z][a-z0-9_-]*:[^\s:]+:[1-9][0-9]*|"
     r"(?:src|backend|frontend|app)/(?:[A-Za-z0-9_.-]+/)*[A-Za-z0-9_.-]+|"
     r"\b[0-9a-f]{40}\b",
@@ -231,8 +231,13 @@ def read_config(project: Path, *, resolve_repository_paths: bool = True, environ
         "standard_version", "knowledge_source_root", "repositories", "coverage_terms",
         "sensitive_patterns", "boundary_notes", "inventory_adapter", "policy_review",
         "semantic_quality",
+        "content_language",
     }
     config = strict_json_object(config_path, allowed=allowed, label="知识库配置")
+    try:
+        content_language.declared(config)
+    except ValueError as exc:
+        raise KnowledgeError(str(exc)) from exc
     profile_path = project / "Code2KB工程配置.json"
     if profile_path.exists():
         if profile_path.is_symlink():
@@ -369,8 +374,12 @@ def read_documents(source: Path) -> tuple[list[Document], Outline]:
             expected = None
             domain = module = None
         if expected is None or any(p.startswith(".") for p in parts):
-            raise KnowledgeError(f"{relative}: 不符合中文知识目录与规定文件类型")
+            raise KnowledgeError(f"{relative}: 不符合知识目录层级与规定文件类型")
         meta, body, original = parse_frontmatter(path)
+        try:
+            content_language.declared(meta)
+        except ValueError as exc:
+            raise KnowledgeError(f"{relative}: {exc}") from exc
         if meta.get("document_type") != expected:
             raise KnowledgeError(f"{relative}: document_type 应为 {expected}")
         if meta.get("review_status") not in {"draft", "reviewed", "policy_reviewed"} or meta.get("applicability") not in {"current", "superseded"}:
@@ -405,7 +414,7 @@ def read_documents(source: Path) -> tuple[list[Document], Outline]:
         if expected in BUSINESS:
             if contains_source_repository_url(body):
                 raise KnowledgeError(f"{relative}: 业务文件含源码仓库链接；请移至研发专属内容")
-            if set(meta) - BUSINESS_METADATA or TECHNICAL.search(body) or BUSINESS_FORBIDDEN.search(body):
+            if set(meta) - BUSINESS_METADATA or TECHNICAL.search(body) or BUSINESS_FORBIDDEN.search(body) or content_language.BUSINESS_EN.search(body):
                 raise KnowledgeError(f"{relative}: 业务文件含明显技术内容或过程用语；请移至技术实现或过程文件")
         if expected in ENGINEERING and meta["review_status"] in {"reviewed", "policy_reviewed"}:
             if meta.get("runtime_status") not in {"source_only", "runtime_verified", "verified_deployment"}:
@@ -888,6 +897,10 @@ def intent_counts(docs: list[Document], config: dict) -> dict[str, int]:
 
 
 def validate_project(docs: list[Document], outline: Outline, config: dict, adapter_entries: set[str] | None, *, for_publish: bool = False, entry_coverage: bool = True) -> list[Document]:
+    language = content_language.declared(config)
+    for doc in docs:
+        if doc.doc_type in BUSINESS | ENGINEERING and doc.meta.get("applicability") == "current" and content_language.declared(doc.meta) != language:
+            raise KnowledgeError(f"{doc.relative}: content_language does not match project ({language}); revise the document and refresh its review")
     revisions = expected_revisions(config)
     if outline.meta.get("source_revisions") != revisions:
         raise KnowledgeError("功能大纲 source_revisions 与项目配置不一致")
@@ -1015,6 +1028,9 @@ def make_release(root: Path, selected: list[Document], release_id: str, engineer
                  config: dict, document_commit: str, outline: Outline, runtime_evidence: int,
                  specs: dict[str, Document]) -> None:
     root.mkdir(parents=True, exist_ok=False)
+    language = content_language.declared(config)
+    def display(zh, en):
+        return content_language.choose(language, zh, en)
     docs = [doc for doc in selected if engineering or doc.doc_type in BUSINESS]
     groups: dict[tuple[str, str], list[Document]] = {}
     for doc in docs:
@@ -1024,11 +1040,11 @@ def make_release(root: Path, selected: list[Document], release_id: str, engineer
         if doc.domain and doc.module:
             groups.setdefault((doc.domain, doc.module), []).append(doc)
     domains = sorted({domain for domain, _ in groups})
-    root_index = ["# 知识库目录", "", "仅列本次已审核并发布的模块。", ""]
-    outline_lines = ["# 功能大纲（已发布部分）", "", "这里只列本次已审核并发布的模块；未发布范围与待处理内容不在本目录内。", ""]
+    root_index = [display("# 知识库目录", "# Knowledge contents"), "", display("仅列本次已审核并发布的模块。", "Only reviewed modules included in this release are listed."), ""]
+    outline_lines = [display("# 功能大纲（已发布部分）", "# Functional inventory (published modules)"), "", display("这里只列本次已审核并发布的模块；未发布范围与待处理内容不在本目录内。", "Only reviewed, published modules appear here; unpublished work remains outside this view."), ""]
     for domain in domains:
         root_index.append(f"- [{domain}]({domain}/目录.md)")
-        domain_lines = [f"# {domain}：目录", ""]
+        domain_lines = [display(f"# {domain}：目录", f"# {domain}: contents"), ""]
         for _, module in sorted(key for key in groups if key[0] == domain):
             module_docs = groups[(domain, module)]
             domain_lines.append(f"- [{module}]({module}/目录.md)")
@@ -1036,35 +1052,35 @@ def make_release(root: Path, selected: list[Document], release_id: str, engineer
             module_lines = [f"# {domain} / {module}", ""]
             for doc in sorted(module_docs, key=lambda item: str(item.relative)):
                 local = doc.relative.relative_to(Path(domain, module))
-                module_lines.append(f"- [{local.stem}]({local.as_posix()})")
+                module_lines.append(f"- [{content_language.label(local.stem, language)}]({local.as_posix()})")
             if engineering and any(doc.doc_type in ENGINEERING for doc in module_docs):
                 spec = specs[module_docs[0].module_id]
                 facts = table_rows(spec.body, "## 入口与调用链", "| fact_id | 单一结论与条件 | 证据等级 | 固定提交锚点 | 影响的知识文件 |")
-                fact_lines = [f"# {domain} / {module}：事实编号对照", "", "本表由已审核规格生成，仅用于定位研发正文中的事实编号。", "", "| fact_id | 结论与条件 | 证据等级 | 证据 |", "| --- | --- | --- | --- |"]
+                fact_lines = [display(f"# {domain} / {module}：事实编号对照", f"# {domain} / {module}: fact reference"), "", display("本表由已审核规格生成，仅用于定位研发正文中的事实编号。", "Generated from reviewed specifications to locate fact references in engineering text."), "", display("| fact_id | 结论与条件 | 证据等级 | 证据 |", "| fact_id | Claim and conditions | Evidence level | Evidence |"), "| --- | --- | --- | --- |"]
                 fact_lines.extend(f"| {fact_id} | {claim} | {level} | {anchor} |" for fact_id, claim, level, anchor, _ in facts)
                 (root / domain / module / "事实编号对照.md").write_text("\n".join(fact_lines) + "\n", encoding="utf-8")
-                module_lines.append("- [事实编号对照](事实编号对照.md)")
+                module_lines.append(f"- [{content_language.label('事实编号对照', language)}](事实编号对照.md)")
             (root / domain / module / "目录.md").write_text("\n".join(module_lines) + "\n", encoding="utf-8")
         (root / domain / "目录.md").write_text("\n".join(domain_lines) + "\n", encoding="utf-8")
     (root / "目录.md").write_text("\n".join(root_index) + "\n", encoding="utf-8")
     (root / "功能大纲.md").write_text("\n".join(outline_lines) + "\n", encoding="utf-8")
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    audience = "研发" if engineering else "业务"
+    audience = display("研发" if engineering else "业务", "engineering" if engineering else "business")
     release = [
-        "# 发布信息",
+        display("# 发布信息", "# Release information"),
         "",
-        f"内容版本：{release_id}",
-        f"知识规范：{config['standard_version']}",
-        f"生成工具：Code2KB Spec {IMPLEMENTATION_VERSION}",
-        f"生成时间（UTC）：{stamp}",
+        display(f"内容版本：{release_id}", f"Content release: {release_id}"),
+        display(f"知识规范：{config['standard_version']}", f"Knowledge standard: {config['standard_version']}"),
+        display(f"生成工具：Code2KB Spec {IMPLEMENTATION_VERSION}", f"Generated by: Code2KB Spec {IMPLEMENTATION_VERSION}"),
+        display(f"生成时间（UTC）：{stamp}", f"Generated at (UTC): {stamp}"),
         "",
-        f"本目录由已审核内容构建，只面向{audience}读者；检索范围限于本目录。",
+        display(f"本目录由已审核内容构建，只面向{audience}读者；检索范围限于本目录。", f"This view contains reviewed content for {audience} readers. Restrict retrieval to this view."),
     ]
     boundary = publish_boundary(config, engineering, outline, selected, runtime_evidence)
     if boundary:
-        release.extend(["", "## 覆盖与边界", ""] + boundary)
+        release.extend(["", display("## 覆盖与边界", "## Coverage and boundaries"), ""] + boundary)
     if engineering:
-        release.extend(["", f"文档提交：{document_commit}", "", "源码基线："])
+        release.extend(["", display(f"文档提交：{document_commit}", f"Document commit: {document_commit}"), "", display("源码基线：", "Source baselines:")])
         for role, settings in sorted(config["repositories"].items()):
             release.append(f"- {role}: {settings['commit']}")
     (root / "发布信息.md").write_text("\n".join(release) + "\n", encoding="utf-8")
@@ -1079,23 +1095,30 @@ def publish_boundary(config: dict, engineering: bool, outline: Outline,
     modules = {doc.module_id for doc in selected if doc.module_id}
     unclassified = sum(entry[3] == "未归类" for entry in outline.entries)
     pending = sum(entry[5] == "待核查" for entry in outline.entries)
-    lines = [
-        f"本目录覆盖 {len(modules)} 个模块；功能大纲有 {pending} 条待核查入口，其中 {unclassified} 条尚未归类。归类不证明线上可达。",
-    ]
-    if engineering:
+    language = content_language.declared(config)
+    if language == "en":
+        lines = [f"This view covers {len(modules)} modules; {pending} inventory entries await review, including {unclassified} unclassified entries. Classification does not prove availability in production."]
+        lines.append(f"Recorded runtime observations: {runtime_evidence}. Without matching observations, actual production behavior is not verified.")
+        if engineering:
+            lines.append("Engineering modules state evidence levels and runtime status; locate source anchors using the pinned revisions in release information.")
+        else:
+            lines.append("Preserve the conditions and unknown boundaries in answers; actual dynamic settings and external service behavior need separate confirmation.")
+    else:
+        lines = [f"本目录覆盖 {len(modules)} 个模块；功能大纲有 {pending} 条待核查入口，其中 {unclassified} 条尚未归类。归类不证明线上可达。"]
+    if language != "en" and engineering:
         lines.append(f"已登记运行依据 {runtime_evidence} 条；没有对应依据的结论只代表固定源码版本，不证明线上实际结果。")
         lines.append("研发正文按模块标明证据等级与运行状态；源码锚点须配合发布信息中的固定提交定位。")
-    else:
+    elif language != "en":
         lines.append(f"运行观测资料：{runtime_evidence} 条；缺少对应观测时，不能认定线上实际结果。")
         lines.append("回答时保留正文的适用条件与未知边界；动态配置和外部服务的实际取值须另行核对。")
     text = config.get("boundary_notes", {}).get("engineering" if engineering else "business", "")
     notes = [line.strip() for line in text.replace("\\n", "\n").splitlines() if line.strip()]
-    if any(re.search(r"\d+\s*(?:个模块|条(?:未归类|待核查|入口|运行依据))", line) for line in notes):
+    if any(re.search(r"\d+\s*(?:个模块|条(?:未归类|待核查|入口|运行依据)|modules?\b|(?:unclassified |pending )?entries\b|runtime observations?\b)", line, re.I) for line in notes):
         raise KnowledgeError("boundary_notes 不得手写覆盖数量；由发布工具自动生成")
     return lines + notes
 
 
-def validate_bundle(root: Path, engineering: bool, *, source_urls: bool = True) -> None:
+def validate_bundle(root: Path, engineering: bool, *, source_urls: bool = True, english_rules: bool = True) -> None:
     """Check the actual reader-visible tree, including generated navigation."""
     root = root.resolve(strict=True)
     for path in root.rglob("*.md"):
@@ -1116,7 +1139,7 @@ def validate_bundle(root: Path, engineering: bool, *, source_urls: bool = True) 
         if plain:
             raise KnowledgeError(f"发布物有未链接的文件引用：{relative} → {plain.group(0)}")
         if not engineering:
-            scan_business_terms(sys.modules[__name__], body, relative.as_posix(), source_urls=source_urls)
+            scan_business_terms(sys.modules[__name__], body, relative.as_posix(), source_urls=source_urls, english_rules=english_rules)
         for target in LINK.findall(body):
             if target.startswith(("http://", "https://", "mailto:")) or target.startswith("#"):
                 continue
@@ -1502,7 +1525,7 @@ def _main() -> int:
             if not relation:
                 raise KnowledgeError("模块没有经校验的关系映射")
             external_specs = {doc.module_id: doc for doc in docs if doc.doc_type == "spec"}
-            segments = fact_render.render_mapped(governance.spec(args.module_id), relation["data"], sys.modules[__name__], external_specs)
+            segments = fact_render.render_mapped(governance.spec(args.module_id), relation["data"], sys.modules[__name__], external_specs, language=content_language.declared(config))
             if not segments:
                 raise KnowledgeError("模块没有可生成的已证实主题事实")
             for segment in segments:

@@ -4,6 +4,11 @@ from __future__ import annotations
 
 import re
 
+try:
+    from . import content_language
+except ImportError:
+    import content_language
+
 
 UNKNOWN = ("未知", "不能确定", "未验证", "待确认", "不清楚")
 
@@ -18,7 +23,7 @@ def unknown_lines(unit: dict) -> set[str]:
     return {
         re.sub(r"\s+", "", line.strip().casefold())
         for line in unit["body"].splitlines()
-        if any(word in line for word in UNKNOWN)
+        if content_language.is_unknown(line)
     }
 
 

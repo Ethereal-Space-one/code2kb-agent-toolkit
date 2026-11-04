@@ -8,8 +8,10 @@ from pathlib import Path
 import re
 
 try:
+    from . import content_language
     from .retrieval_model import RetrievalError, digest, json_bytes, read_unit, strict_json
 except ImportError:
+    import content_language
     from retrieval_model import RetrievalError, digest, json_bytes, read_unit, strict_json
 
 
@@ -116,7 +118,7 @@ def evaluate_data(suite: dict, units: dict[str, dict], external: dict | None, co
         unknown = [phrase for phrase in case["required_unknown_phrases"] if phrase not in text]
         forbidden = [phrase for phrase in case["forbidden_phrases"] if phrase in all_text]
         leakage = [unit_id for unit_id in result_ids if audience == "business" and units[unit_id]["meta"]["audience"] != "business"]
-        hashes = [digest(re.sub(r"\s+", "", unit["body"].split("## 出处", 1)[0]).encode("utf-8")) for unit in selected]
+        hashes = [digest(re.sub(r"\s+", "", content_language.split_sources(unit["body"])[0]).encode("utf-8")) for unit in selected]
         duplicate_hits = len(hashes) - len(set(hashes))
         passed = module_recall == 1 and unit_recall == 1 and not required and not unknown and not forbidden and not leakage and duplicate_hits == 0 and corpus_identity_correct
         rows.append({

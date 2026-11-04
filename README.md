@@ -26,6 +26,8 @@ Code2KB Spec 将 Agent Skill、开放知识规范和 Python CLI 组合成可复�
 
 ## 快速开始
 
+1.2.0 的主分支补充已支持[英文使用与输出](docs/usage.en.md)：人读指南与 AI 执行指引分开，项目可选 `content_language: en`；固定协议路径和表头保留。语言声明不自动鉴别正文语言，仍需 AI 复核；原 `v1.2.0` 标签不包含此补充。
+
 需要 **Git、Python 3.9+**，以及能读取本机仓库的 AI 编码助手。CLI 修改类命令依赖 `fcntl` 文件锁，适用于 Linux／macOS 等提供该模块的平台；缺少该模块的平台仍可运行只读检查。
 
 ### 1. 安装并固定源码版本
@@ -147,6 +149,6 @@ code2kb analyze-candidates --project-root /path/to/knowledge-project \
 
 当前工程版本：`1.2.0`。新项目默认文件协议为 `c2kb-file/1`，旧 `0.8.3` 项目仍受支持。详见[变更记录](CHANGELOG.md)与[路线图](ROADMAP.md)。
 
-全栈适配为 `main` 上的发布后补充；`v1.2.0` 标签仍指向原始发行快照。
+全栈适配及英文使用与输出为 `main` 上的发布后补充；`v1.2.0` 标签仍指向原始发行快照。
 
 [反馈问题](https://github.com/Ethereal-Space-one/code2kb-spec/issues) · [参与贡献](CONTRIBUTING.md) · [Apache License 2.0](LICENSE)

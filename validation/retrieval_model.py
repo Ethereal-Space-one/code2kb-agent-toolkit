@@ -101,7 +101,7 @@ def read_unit(path: Path) -> tuple[dict[str, str], str]:
     if not all(FACT_ID.fullmatch(item) for item in facts) or (meta["traceability_level"] == "fact") != bool(facts):
         raise RetrievalError(f"检索单元事实追溯无效：{path}")
     body = "\n".join(lines[end + 1:]).strip() + "\n"
-    if not body.startswith("# ") or "## 出处" not in body:
+    if not body.startswith("# ") or ("## 出处" not in body and not re.search(r"(?m)^## Sources$", body)):
         raise RetrievalError(f"检索单元正文结构无效：{path}")
     return meta, body
 

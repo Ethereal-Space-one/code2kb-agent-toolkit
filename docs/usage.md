@@ -1,5 +1,9 @@
 # Code2KB Spec 使用指南
 
+**简体中文** · [English](usage.en.md)
+
+本文件面向知识库维护者；AI 使用独立的 [Skill 入口](../skills/extract-app-knowledge/SKILL.md)。操作手顺与 AI 指令都不进入机器人语料。
+
 > 适用于工程 `1.2.0`：新项目默认 `c2kb-file/1`，旧 `0.8.3` 项目继续受支持。AI 的执行入口是 [`skills/extract-app-knowledge/SKILL.md`](../skills/extract-app-knowledge/SKILL.md)。
 
 ## 工作方式
@@ -39,6 +43,8 @@ code2kb --version
 2. 复制 [`templates/知识库配置.example.json`](../templates/知识库配置.example.json)。
 3. 为每个源码仓库填写绝对路径或完整 `${UPPER_CASE_ENV}` 引用，并填写固定提交 SHA。
 4. 让 AI 读取 Skill，先建立完整功能大纲。
+
+项目 `content_language` 可选 `zh-CN`（缺省）或 `en`。正文、问答和生成导航使用所选语言；英文业务及研发文件须显式声明 `content_language: en`。AI 交互语言、知识输出语言、源码编程语言分别处理。固定文件名、表头、枚举和 ID 保留；英文流程见[英文使用指南](usage.en.md)。修改语言或翻译正文后仍需刷新候选和重新审核，不能沿用旧批准。
 
 ```text
 请完整读取 <code2kb-spec-root>/skills/extract-app-knowledge/SKILL.md，

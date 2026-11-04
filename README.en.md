@@ -41,12 +41,15 @@ git -C /path/to/source-repo rev-parse HEAD
 
 Keep the knowledge project separate from source repositories. Edit `知识库配置.json`: remove unused example repositories and set each `repositories` entry's `path` to an absolute local path and `commit` to a pinned SHA.
 
+For English knowledge, set `content_language` to `en` in the project configuration and use the [English guide](docs/usage.en.md). Fixed protocol paths and table tokens remain unchanged; prose and generated navigation use English. Some CLI diagnostics remain Chinese. This is a 1.2.0 supplement on `main`, absent from the original `v1.2.0` tag. The declaration checks consistency, not whether every sentence is English; the agent must review the writing language.
+
 ### 2. Have an agent extract knowledge
 
 Give your coding agent this task:
 
 ```text
 Read <code2kb-spec-root>/skills/extract-app-knowledge/SKILL.md.
+Select the English AI workflow. Use English interaction and content_language=en.
 Build a source-backed business knowledge base in /path/to/knowledge-project.
 Verify pinned commits and create the full functional inventory, then gather evidence, write, and review each module.
 Preserve conditions and unknowns; do not present source inference as production behavior.
@@ -75,7 +78,7 @@ code2kb publish --project-root /path/to/knowledge-project --release-id my-kb-v1
 code2kb audit-release --project-root /path/to/knowledge-project
 ```
 
-See the [usage guide](docs/usage.md) for full arguments, review records, and release steps.
+See the [usage guide](docs/usage.en.md) for full arguments, review records, and release steps.
 
 <details>
 <summary>Want to explore the file structure first? Run the bundled demo</summary>
@@ -94,7 +97,7 @@ An optional independent verifier checks whether cited source supports a claim. D
 
 ![Optional 1.2 workflow: prepare a candidate, export evidence, run external calibration and verification, then check the report against policy; failed verification stays in draft](assets/readme/independent-review.en.svg)
 
-Policy `1.1` can require calibration on injected faults using `verifier-calibrate`. Calibration scores do not establish accuracy on real projects. A failed verification leaves the module in draft; human review remains a separate option. See the [independent verifier workflow](docs/usage.md#可选独立验证者12).
+Policy `1.1` can require calibration on injected faults using `verifier-calibrate`. Calibration scores do not establish accuracy on real projects. A failed verification leaves the module in draft; human review remains a separate option. See the [independent verifier workflow](docs/usage.en.md#4-choose-a-review-path-then-release).
 
 ## Extensions and maintenance
 
@@ -142,12 +145,12 @@ Code, filenames, and fact IDs are illustrative. These detail diagrams use Chines
 
 ## Documentation
 
-[Usage guide](docs/usage.md) · [Knowledge-file specification](SPEC.md) · [Retrieval contract](docs/retrieval-contract.md) · [Assurance boundaries](docs/assurance-matrix.md) · [Versioning](docs/versioning.md)
+[Usage guide](docs/usage.en.md) · [Knowledge-file specification](SPEC.md) · [Retrieval contract](docs/retrieval-contract.md) · [Assurance boundaries](docs/assurance-matrix.md) · [Versioning](docs/versioning.md)
 
 Source code alone cannot prove production behavior, business policy, or authorization outcomes; unknowns remain explicit without evidence. Consumers provide model execution, production FTS/vector services, and bot deployment.
 
 Current project version: `1.2.0`. New projects default to `c2kb-file/1`; existing `0.8.3` projects remain supported. See the [changelog](CHANGELOG.md) and [roadmap](ROADMAP.md). The normative specification is in Simplified Chinese.
 
-The full-stack update is a post-release supplement on `main`; the `v1.2.0` tag remains the original release snapshot.
+Full-stack and English-output updates are post-release supplements on `main`; the `v1.2.0` tag remains the original release snapshot.
 
 [Report an issue](https://github.com/Ethereal-Space-one/code2kb-spec/issues) · [Contribute](CONTRIBUTING.md) · [Apache License 2.0](LICENSE)
