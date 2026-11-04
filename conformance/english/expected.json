@@ -1,0 +1,12 @@
+{
+  "module_id": "example.order.lookup",
+  "query": "Can a signed-in user look up any order outside their assigned regions?",
+  "facts": [
+    {"id": "FACT-001", "line": 2, "claim": "Signed-out users receive sign_in_required."},
+    {"id": "FACT-002", "line": 5, "claim": "Missing orders return not_found."},
+    {"id": "FACT-003", "line": 7, "claim": "Permission depends on region ownership; orders outside assigned regions return outside_region."}
+  ],
+  "required_phrases": ["Only signed-in users", "Being signed in alone does not grant access to every order", "Missing orders return a not-found result", "outside-region result"],
+  "unknown_phrases": ["Actual region assignments and production behavior have not been verified"],
+  "forbidden_phrases": ["FACT-001", "orders.py", "source_revisions", "every signed-in user can access every order"]
+}

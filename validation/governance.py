@@ -14,9 +14,9 @@ from types import SimpleNamespace
 from urllib.parse import quote
 
 try:
-    from . import relation_model, fact_render, run_state, verifier
+    from . import relation_model, fact_render, run_state, verifier, content_language
 except ImportError:
-    import relation_model, fact_render, run_state, verifier
+    import relation_model, fact_render, run_state, verifier, content_language
 
 
 FILES_HEADER = "| 文件 | document_type | 内容摘要 |"
@@ -65,10 +65,10 @@ def digest(value: str | bytes) -> str:
     return hashlib.sha256(value.encode("utf-8") if isinstance(value, str) else value).hexdigest()
 
 
-def scan_business_terms(core, text: str, where: str, *, source_urls: bool = True) -> None:
+def scan_business_terms(core, text: str, where: str, *, source_urls: bool = True, english_rules: bool = True) -> None:
     """业务版生成文本不得出现过程用语、内部编号或实现术语（研发版不受此限）。"""
     for number, line in enumerate(text.split("\n"), 1):
-        if core.TECHNICAL.search(line) or core.BUSINESS_FORBIDDEN.search(line):
+        if core.TECHNICAL.search(line) or core.BUSINESS_FORBIDDEN.search(line) or (english_rules and content_language.BUSINESS_EN.search(line)):
             raise ValueError(f"业务版生成内容含禁用表述（{where}:{number}）：{line.strip()[:80]}；请修正发布清单主题或发布信息边界文案后重试")
         if source_urls and core.contains_source_repository_url(line):
             raise ValueError(f"业务版生成内容含源码仓库链接（{where}:{number}）；请移至研发专属内容")
@@ -433,7 +433,7 @@ class Governance:
         subject = manifest.meta.get("review_subject_digest")
         if not SHA.fullmatch(subject or "") or subject != review_subject_digest(manifest.original):
             raise ValueError("发布清单候选摘要缺失或已变化；重新 prepare")
-        return verifier.build_pack(kind, subject, module_id, self.verifier_expected(kind, manifest, self.spec(module_id)))
+        return verifier.build_pack(kind, subject, module_id, self.verifier_expected(kind, manifest, self.spec(module_id)), language=content_language.declared(self.config))
 
     def calibration_entries(self):
         entries = []
@@ -449,7 +449,7 @@ class Governance:
     def calibration_pack(self, seed, max_facts):
         if type(seed) is not int or type(max_facts) is not int or max_facts < 1:
             raise ValueError("seed 与 max-facts 须为整数，且 max-facts 至少为 1")
-        return verifier.build_calibration(self.calibration_entries(), seed, max_facts)
+        return verifier.build_calibration(self.calibration_entries(), seed, max_facts, language=content_language.declared(self.config))
 
     def calibration_report(self, pack, key, answers):
         report = verifier.score_calibration(pack, key, answers)
@@ -828,7 +828,7 @@ class Governance:
             value = manifest.meta.get(key, "")
             if not value or any(char in value for char in "\n\r|"):
                 raise ValueError(f"发布清单缺少有效的 {key}")
-            if key.startswith("business_") and (self.core.TECHNICAL.search(value) or self.core.BUSINESS_FORBIDDEN.search(value) or self.core.contains_source_repository_url(value)):
+            if key.startswith("business_") and (self.core.TECHNICAL.search(value) or self.core.BUSINESS_FORBIDDEN.search(value) or content_language.BUSINESS_EN.search(value) or self.core.contains_source_repository_url(value)):
                 raise ValueError(f"发布清单须有业务语言的 {key}（不得含过程用语或内部编号）")
         return result
 
@@ -854,7 +854,7 @@ class Governance:
         self.core.validate_project(prospective, self.outline, self.config, self.core.registered_adapter_entries(self.config))
         self.core.validate_entry_coverage(spec, self.outline, required=True)
         for value in (business_topics, business_unknowns, business_keywords):
-            if not value or any(char in value for char in "\n\r|") or self.core.TECHNICAL.search(value) or self.core.BUSINESS_FORBIDDEN.search(value) or self.core.contains_source_repository_url(value):
+            if not value or any(char in value for char in "\n\r|") or self.core.TECHNICAL.search(value) or self.core.BUSINESS_FORBIDDEN.search(value) or content_language.BUSINESS_EN.search(value) or self.core.contains_source_repository_url(value):
                 raise ValueError("业务主题、未知和关键词须为单行业务语言，且不得含过程用语或内部编号")
         engineering_topics = engineering_topics or business_topics
         engineering_unknowns = engineering_unknowns or business_unknowns
@@ -1054,26 +1054,29 @@ class Governance:
         return commit
 
     def retrieval_index(self, root, selected, engineering):
-        lines = ["# 检索索引", "", "先按主题找到文件，再读取对应正文和标题段落。索引只提供定位信息；确定答案须依据正文。", ""]
+        language = content_language.declared(self.config)
+        def display(zh, en):
+            return content_language.choose(language, zh, en)
+        lines = [display("# 检索索引", "# Retrieval index"), "", display("先按主题找到文件，再读取对应正文和标题段落。索引只提供定位信息；确定答案须依据正文。", "Locate a topic, then read its full text and headings. This index locates evidence; answers must follow the text."), ""]
         for module_id in sorted({doc.module_id for doc in selected if doc.module_id}):
             items = [doc for doc in selected if doc.module_id == module_id and (engineering or doc.doc_type in self.core.BUSINESS)]
             manifest = next(doc for doc in self.docs if doc.module_id == module_id and doc.doc_type == "release_manifest")
             prefix = "engineering" if engineering else "business"
-            lines.extend([f"## {manifest.domain}／{manifest.module}", "", f"关键词：{manifest.meta[prefix + '_keywords']}", f"可回答主题：{manifest.meta[prefix + '_topics']}", f"需限定或仍未知：{manifest.meta[prefix + '_unknowns']}", ""])
+            lines.extend([f"## {manifest.domain}／{manifest.module}", "", display("关键词：", "Keywords: ") + manifest.meta[prefix + '_keywords'], display("可回答主题：", "Answerable topics: ") + manifest.meta[prefix + '_topics'], display("需限定或仍未知：", "Limitations and unknowns: ") + manifest.meta[prefix + '_unknowns'], ""])
             for doc in sorted(items, key=lambda item: str(item.relative)):
                 link = quote(doc.relative.as_posix(), safe="/")
-                lines.append(f"- [{doc.relative.stem}]({link})")
+                lines.append(f"- [{content_language.label(doc.relative.stem, language)}]({link})")
                 headings = re.findall(r"(?m)^#{2,3} (.+)$", doc.body)
                 if headings:
-                    lines.append("  标题定位：" + "；".join(headings))
+                    lines.append(display("  标题定位：", "  Headings: ") + display("；", "; ").join(headings))
             if engineering:
                 glossary = Path(manifest.domain, manifest.module, "事实编号对照.md")
                 if (root / glossary).is_file():
-                    lines.append(f"- [事实编号对照]({quote(glossary.as_posix(), safe='/')})")
+                    lines.append(f"- [{content_language.label('事实编号对照', language)}]({quote(glossary.as_posix(), safe='/')})")
             lines.append("")
         for doc in selected:
             if doc.doc_type == "glossary":
-                lines.append(f"- [术语表]({quote(doc.relative.as_posix(), safe='/')})")
+                lines.append(f"- [{content_language.label('术语表', language)}]({quote(doc.relative.as_posix(), safe='/')})")
         if not engineering:
             scan_business_terms(self.core, "\n".join(lines), "检索索引.md")
         (root / "检索索引.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -1217,8 +1220,22 @@ class Governance:
             if registry_local is not None and registry_local != path.relative_to(self.project).as_posix():
                 raise ValueError("当前版本指向的版本清单路径无效")
         source_urls = release_checks_source_urls(generated_by["version"])
+        # A frozen declaration opts into bilingual checks. Pre-feature snapshots
+        # without declarations retain their original lexical audit rules.
+        language_rules = False
+        frozen_languages = set()
+        for root in roots:
+            for item in root.rglob("*.md"):
+                first = item.read_bytes().splitlines()[:1]
+                if item.name not in set(self.core.TYPES) | {"术语表.md"} or not first or first[0].strip() != b"---":
+                    continue
+                meta, _, _ = self.core.parse_frontmatter(item)
+                frozen_languages.add(content_language.declared(meta))
+                language_rules = language_rules or "content_language" in meta
+        if language_rules and len(frozen_languages) != 1:
+            raise ValueError("Frozen release contains inconsistent content_language declarations")
         for audience, view in value["views"].items():
-            self.core.validate_bundle(self.view_path(view["path"]), audience == "engineering", source_urls=source_urls)
+            self.core.validate_bundle(self.view_path(view["path"]), audience == "engineering", source_urls=source_urls, english_rules=language_rules)
         return value
 
     def current_pointer(self, release_id, value, registry_sha256):
@@ -1235,6 +1252,16 @@ class Governance:
         }
 
     def current_markdown(self, pointer):
+        if content_language.declared(self.config) == "en":
+            return (
+                f"# Current release\n\nContent release: {pointer['release_id']}\n\n"
+                f"Knowledge standard: {pointer['standard_version']}\n\n"
+                f"Generated by: {pointer['generated_by']['name']} {pointer['generated_by']['version']}\n\n"
+                f"- [Business view](../{pointer['business_path']}/目录.md)\n"
+                f"- [Engineering view](../{pointer['engineering_path']}/目录.md)\n\n"
+                "Consumers read the adjacent `当前版本.json` and index only the permitted audience view. "
+                "The working tree holds the current snapshot; Git commits or tags preserve history.\n"
+            )
         return (
             f"# 当前版本\n\n内容版本：{pointer['release_id']}\n\n"
             f"知识规范：{pointer['standard_version']}\n\n"

@@ -12,8 +12,10 @@ import tempfile
 from urllib.parse import unquote
 
 try:
+    from . import content_language
     from .retrieval_model import AUDIENCES, SCHEMA, RetrievalError, digest, inventory, json_bytes, read_unit, render_unit, strict_json
 except ImportError:
+    import content_language
     from retrieval_model import AUDIENCES, SCHEMA, RetrievalError, digest, inventory, json_bytes, read_unit, render_unit, strict_json
 
 
@@ -44,13 +46,13 @@ def metadata_candidates(docs) -> dict[str, str]:
         unknowns = []
         for doc in sorted(selected, key=lambda item: allowed.index(item.relative.name)):
             for title, content in sections(doc.body, doc.relative.name):
-                if title not in topics and title not in {"说明", "目录", "接口索引", "方法索引"}:
+                if title not in topics and title not in {"说明", "目录", "接口索引", "方法索引"} and title.casefold() not in content_language.INDEX_EN | {"notes"}:
                     topics.append(title)
                 if doc.relative.name == "常见问答.md":
                     questions.append(question_variants(title))
                 for line in content.splitlines():
                     line = line.strip().strip("-* ")
-                    if any(term in line for term in ("未知", "不能确定", "未验证", "待确认")) and line and line not in unknowns:
+                    if content_language.is_unknown(line) and line and line not in unknowns:
                         unknowns.append(line)
             if not topics:
                 heading = re.search(r"(?m)^#\s+(.+)$", doc.body)
@@ -59,7 +61,9 @@ def metadata_candidates(docs) -> dict[str, str]:
         if audience == "engineering" and not selected:
             continue
         def joined(values):
-            return "、".join(re.sub(r"[\r\n|]", " ", value).strip() for value in values[:3] if value).strip()[:180]
+            language = content_language.declared(selected[0].meta) if selected else content_language.DEFAULT
+            separator = content_language.choose(language, "、", "; ")
+            return separator.join(re.sub(r"[\r\n|]", " ", value).strip() for value in values[:3] if value).strip()[:180]
         result[f"{audience}_topics"] = joined(topics)
         result[f"{audience}_keywords"] = joined(questions or topics)
         result[f"{audience}_unknowns"] = joined(unknowns)
@@ -87,7 +91,7 @@ def sections(body: str, filename: str):
     for index, match in enumerate(matches):
         title = match[1].strip().strip("：:")
         content = body[match.end():matches[index + 1].start() if index + 1 < len(matches) else len(body)].strip()
-        if not content or title in {"目录", "事实编号对照", "索引", "接口索引", "方法索引"}:
+        if not content or title in {"目录", "事实编号对照", "索引", "接口索引", "方法索引"} or title.casefold() in content_language.INDEX_EN:
             continue
         # Nested headings carry the enclosing topic; do not turn an empty heading into a unit.
         yield title, content
@@ -103,7 +107,7 @@ def index_sections(body: str, filename: str) -> list[tuple[str, str, list[str]]]
     if not original:
         return []
     headings = [match[1].strip().strip("：:") for match in HEADING.finditer(body)]
-    if any(title in SHARED_CONTEXT_TITLES for title in headings):
+    if any(title in SHARED_CONTEXT_TITLES or title.casefold() in content_language.SHARED_EN for title in headings):
         # A rule or exception in a sibling section cannot safely be assigned to
         # one answer by a lexical parser. Keep the whole source instead.
         title_match = FIRST_HEADING.search(body)
@@ -130,7 +134,7 @@ def index_sections(body: str, filename: str) -> list[tuple[str, str, list[str]]]
         if level == 2:
             parent_title, parent_intro = title, content
             has_children = index + 1 < len(selected) and selected[index + 1][1] == 3
-            if content and not has_children and title not in {"目录", "事实编号对照", "索引", "接口索引", "方法索引"}:
+            if content and not has_children and title not in {"目录", "事实编号对照", "索引", "接口索引", "方法索引"} and title.casefold() not in content_language.INDEX_EN:
                 combined = f"{document_intro}\n\n{content}" if document_intro else content
                 results.append((title, combined, [title]))
         elif content:
@@ -147,10 +151,14 @@ def readable_module_title(body: str, filename: str) -> str:
         return filename.removesuffix(".md")
     title = match[1].strip()
     suffix = filename.removesuffix(".md")
-    for separator in ("：", ":", "·", "-"):
-        ending = separator + suffix
-        if title.endswith(ending):
-            return title[: -len(ending)].strip()
+    for suffix in dict.fromkeys((suffix, content_language.label(suffix, "en"))):
+        for separator in ("：", ":", "·", "-"):
+            ending = separator + suffix
+            if title.endswith(ending):
+                return title[: -len(ending)].strip()
+            ending = separator + " " + suffix
+            if title.endswith(ending):
+                return title[: -len(ending)].strip()
     return title
 
 
@@ -241,13 +249,14 @@ def build_in_release(release_root: Path, release_id: str, profile: str, generate
                 if source is None:
                     continue
                 meta, body = source_meta(source)
+                language = content_language.declared(meta)
                 module_id = meta.get("module_id", "")
                 if not module_id:
                     raise RetrievalError(f"发布正文缺少 module_id：{source}")
                 module_title = clean_title(readable_module_title(body, filename))
                 for raw_title, content, source_headings in index_sections(body, filename):
                     title = clean_title(raw_title)
-                    if title in GENERIC_TITLES:
+                    if title in GENERIC_TITLES or title.casefold() in content_language.GENERIC_EN:
                         title = clean_title(f"{module_title} · {title}")
                     if not title:
                         continue
@@ -268,15 +277,14 @@ def build_in_release(release_root: Path, release_id: str, profile: str, generate
                             original["path"].write_bytes(render_unit(old_meta, old_body))
                         duplicates.append({"audience": audience, "module_id": module_id, "source": source_local, "same_as": original["source"]})
                         continue
-                    if raw_title in GENERIC_TITLES and title in generic_units:
+                    if (raw_title in GENERIC_TITLES or raw_title.casefold() in content_language.GENERIC_EN) and title in generic_units:
                         original = generic_units[title]
                         destination = original["path"]
                         rewritten = rewrite_links(content, source, destination)
                         old_meta, old_body = read_unit(destination)
-                        if "\n## 出处\n\n" not in old_body:
-                            raise RetrievalError("检索单元缺少出处段")
-                        addition = f"\n### {filename} · {raw_title}\n\n{rewritten}\n"
-                        old_body = old_body.replace("\n## 出处\n\n", addition + "\n## 出处\n\n", 1)
+                        before, marker, references = content_language.split_sources(old_body)
+                        addition = f"\n### {content_language.label(source.stem, language)} · {raw_title}\n\n{rewritten}\n"
+                        old_body = before + addition + marker + references
                         old_body = old_body.rstrip() + f"\n- {source_local} · {' | '.join(source_headings)}\n"
                         original["entry"]["source_documents"].append(source_local)
                         old_meta["source_documents"] = " | ".join(original["entry"]["source_documents"])
@@ -298,7 +306,9 @@ def build_in_release(release_root: Path, release_id: str, profile: str, generate
                     destination = target_root / local_unit
                     destination.parent.mkdir(parents=True, exist_ok=True)
                     rewritten = rewrite_links(content, source, destination)
-                    body_text = f"# {title}\n\n模块：{module_title}\n\n## 结论与边界\n\n{rewritten}\n\n## 出处\n\n- {source_local} · {' | '.join(source_headings)}\n"
+                    module_label = content_language.choose(language, "模块：", "Module: ")
+                    boundary_title = content_language.choose(language, "## 结论与边界", "## Conclusions and boundaries")
+                    body_text = f"# {title}\n\n{module_label}{module_title}\n\n{boundary_title}\n\n{rewritten}\n\n{content_language.SOURCES[language]}\n\n- {source_local} · {' | '.join(source_headings)}\n"
                     if audience == "business" and business_scanner is not None:
                         business_scanner(body_text, str(destination))
                     facts = sorted(set(FACT.findall(content))) if audience == "engineering" else []
@@ -315,7 +325,7 @@ def build_in_release(release_root: Path, release_id: str, profile: str, generate
                     item = {"unit_id": unit_id, "module_id": module_id, "audience": audience, "path": f"发布/检索版/{'业务' if audience == 'business' else '研发'}/{local_unit}", "topic": title, "source_documents": [source_local]}
                     units.append(item)
                     seen[normalized] = {"source": source_local, "entry": item, "path": destination}
-                    if raw_title in GENERIC_TITLES:
+                    if raw_title in GENERIC_TITLES or raw_title.casefold() in content_language.GENERIC_EN:
                         generic_units[title] = seen[normalized]
     if not any(item["audience"] == "business" for item in units):
         raise RetrievalError("基础发布没有可生成的业务检索单元")

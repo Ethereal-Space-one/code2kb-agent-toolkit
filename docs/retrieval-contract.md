@@ -21,7 +21,9 @@
 
 生成器识别“适用条件／已确认的适用条件／回答边界／尚不能确定的结果”这些跨节限定标题时，会保守保留完整来源正文为一个单元。其他标题仍需维护者核对条件和答案是否在同一节；生成器不能自动判断所有限定的语义归属。单元超过既有大小上限则构建失败。各单元继承来源文件首节之前的正文前言，嵌套问答还继承其父节前言；泛标题带可读模块名。原文内部锚点会指回基础发布正文。`source_headings` 保留参与聚合的来源节标题，关系主题仍可按原标题找到对应单元。
 
-单元 front matter 必须且只能含 `document_type: retrieval_unit`、`retrieval_schema_version: 0.1`、`unit_id`、`module_id`、`audience`、`topic`、`question_variants`、`source_documents`、`source_headings`、`fact_ids`、`traceability_level`、`release_id`。`audience` 为 `business|engineering`；没有可核事实 ID 时 `fact_ids` 留空、`traceability_level: document`。正文末尾必须有 `## 出处`。一个单元不能超过 256 KiB；不接受符号链接或路径穿越。
+单元 front matter 必须且只能含 `document_type: retrieval_unit`、`retrieval_schema_version: 0.1`、`unit_id`、`module_id`、`audience`、`topic`、`question_variants`、`source_documents`、`source_headings`、`fact_ids`、`traceability_level`、`release_id`。`audience` 为 `business|engineering`；没有可核事实 ID 时 `fact_ids` 留空、`traceability_level: document`。正文末尾必须有 `## 出处`（中文）或 `## Sources`（英文）。一个单元不能超过 256 KiB；不接受符号链接或路径穿越。
+
+英文展示由已审计基础正文中的 `content_language: en` 决定，不读取之后修改的项目语言设置。机器字段、文件路径和 ID 规则不变。英文共享条件标题约定为 `Applicability`、`Confirmed conditions`、`Answer boundaries`、`Unverified outcomes`；与中文标题一样，无法可靠地分配给单个答案时保守保留整篇。`Q:` 为问题标题；英文未知词面检测只提供辅助，不证明语义完整。维护者操作指南、AI 执行指令与内部规格均不进入业务语料。
 
 检索清单保存两视图逐文件摘要、单元目录、确切重复与相似候选、路由索引摘要、评测报告及其问题集和外部结果摘要。它绑定基础 `release_id`、registry 路径与 SHA-256。`当前检索版本.json` 同时绑定基础 registry 摘要和检索清单摘要。基础发布变化后必须重新构建检索版；不能直接改发布物修复答案。
 
