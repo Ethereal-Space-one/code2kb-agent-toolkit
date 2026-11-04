@@ -16,6 +16,8 @@ Code2KB 的目标是从固定源码中提取**可回答的业务行为与代码�
 
 参考入口为 `code2kb analyze-candidates --repository-id ID --candidate-schema 0.2 --project-root PROJECT`。可用 `--adapter builtin-mixed|universal-l1` 选择内置能力；后者只做 L1 文件盘点。可选 `--scope` 指定仓库内安全相对路径，`--uniapp-manifest` 指定已配置仓库内的标准 JSON 页面清单。默认不指定 `--candidate-schema` 时，仍输出旧 schema `0.1`；全局 `--output json` 的响应 envelope 也维持 `0.1`。
 
+内置候选 Adapter 规则版本 `0.2` 明确显式范围的过滤方式：未指定 `--scope` 时保持原目录过滤；指定文件或目录时，其路径本身和祖先中的默认依赖／生成目录名称不再排除整个范围，但范围下新遇到的默认过滤目录仍会跳过。例如 `--scope vendor/internal` 包含该目录的自有源码，仍过滤其 `node_modules` 子目录。`.git` 元数据、非普通文件、二进制、非 UTF-8 和大小／数量限制始终保留；子模块不自动递归工作区，须另行配置仓库与固定提交。未知后缀作为 L1、`language: unknown` 保留，不等于语法解析。`snapshot.scope` 与 `coverage.skipped` 记录扫描范围和跳过计数；候选格式、SDK 签名及已有路径的 ID 规则不变。
+
 Adapter 输入是仓库逻辑 ID、完整固定 Git 提交、扫描范围和明确配置。输出 schema `0.2` 含：
 
 - `adapter`：名称、规则版本和能力声明；

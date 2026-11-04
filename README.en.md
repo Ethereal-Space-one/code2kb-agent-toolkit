@@ -6,6 +6,8 @@
 
 Code2KB Spec combines an Agent Skill, an open knowledge specification, and a Python CLI into a reviewable knowledge-production workflow. Your coding agent reads source code and extracts business and implementation logic; `code2kb` checks evidence bindings, review records, and release artifacts.
 
+**1.2.0 follow-up**: general full-stack inventory, cross-language evidence guidance, explicit scanning of nonstandard source directories, and clearer reference diagnostics. [See the supplement](CHANGELOG.md).
+
 [Quick start](#quick-start) · [Outputs](#outputs) · [Independent verification](#independent-verification-12) · [Documentation](#documentation)
 
 ![Code2KB 1.2: pinned source becomes knowledge files through AI authoring, review, and release, then feeds external FTS or vector retrieval and bot Q&A](assets/readme/overview.en.svg)
@@ -96,9 +98,25 @@ Policy `1.1` can require calibration on injected faults using `verifier-calibrat
 
 ## Extensions and maintenance
 
+- **[Full-stack and cross-language evidence](skills/extract-app-knowledge/references/全栈范围盘点.md)**: inventory repositories, build units, and actual roles; investigate cross-layer calls, async work, native components, and configuration overrides by scenario. [Self-authored public cases](conformance/full-stack/README.md) check preservation of conditions and unknowns in knowledge artifacts.
 - **[Resumable tasks](docs/0.6.0-runner.md)**: local task ledgers, checkpoints, and recovery, with [Claude Code](hosts/claude-code/README.md) / [Codex](hosts/codex/README.md) task instructions.
 - **[Source-upgrade review](docs/1.0.0-public-contract.md)**: compare pinned revisions and produce a read-only plan of knowledge to review and remaining gaps.
 - **[Source adapters](docs/adapter-contract.md)**: discover entry-point and relationship candidates for review; languages without a dedicated analyzer fall back to L1 file-level discovery.
+
+<details>
+<summary>Scan a nonstandard directory containing your own source</summary>
+
+Replace `source_a` with a repository ID from your project configuration:
+
+```bash
+code2kb analyze-candidates --project-root /path/to/knowledge-project \
+  --repository-id source_a --candidate-schema 0.2 \
+  --adapter universal-l1 --scope vendor/internal
+```
+
+An explicit scope is no longer skipped because of an ancestor named `vendor`; nested dependency and generated directories remain filtered. Regular UTF-8 text with an unknown extension can enter L1 inventory. Candidates are not verified business facts. See the [adapter contract](docs/adapter-contract.md).
+
+</details>
 
 <details>
 <summary>View source inventory, evidence, and two-view structure (3 diagrams)</summary>
@@ -129,5 +147,7 @@ Code, filenames, and fact IDs are illustrative. These detail diagrams use Chines
 Source code alone cannot prove production behavior, business policy, or authorization outcomes; unknowns remain explicit without evidence. Consumers provide model execution, production FTS/vector services, and bot deployment.
 
 Current project version: `1.2.0`. New projects default to `c2kb-file/1`; existing `0.8.3` projects remain supported. See the [changelog](CHANGELOG.md) and [roadmap](ROADMAP.md). The normative specification is in Simplified Chinese.
+
+The full-stack update is a post-release supplement on `main`; the `v1.2.0` tag remains the original release snapshot.
 
 [Report an issue](https://github.com/Ethereal-Space-one/code2kb-spec/issues) · [Contribute](CONTRIBUTING.md) · [Apache License 2.0](LICENSE)

@@ -1,0 +1,148 @@
+{
+  "schema_version": "0.1",
+  "cases": [
+    {
+      "case_id": "browser-service",
+      "module_id": "example.browser_service",
+      "topic": "导出资格与额度",
+      "query": "导出权限与额度怎么判断",
+      "source_sha256": {
+        "app/page.ts": "bd97d6c8dff3baf7248b12de05718297b399ee307f58d03e6c5af085d9d9139b",
+        "support/handler.py": "b7e7004246bc3ec424910d1d3ead40d97a22fba4a22437142a1c4003dc4e2bf1",
+        "support/gateway.py": "287436caae1665c1785b5f0209347420e183461944d64839f21ce28b6c8ae850",
+        "support/create.sql": "a03186185819c3b09f0968dc130a3d355870ec07d52a029851ee941fccfb0614"
+      },
+      "facts": [
+        {
+          "fact_id": "FACT-001",
+          "claim": "页面显示条件与服务端导出权限校验分别存在；成功结果由网关包装。",
+          "anchors": [
+            "app:page.ts:1-6",
+            "support:handler.py:6-14",
+            "support:gateway.py:3-9"
+          ]
+        },
+        {
+          "fact_id": "FACT-002",
+          "claim": "导出数量默认上限为10，可由环境配置覆盖；通过校验后执行插入。",
+          "anchors": [
+            "support:handler.py:4-14",
+            "support:create.sql:1-1"
+          ]
+        }
+      ],
+      "required_phrases": [
+        "导出权限",
+        "默认上限为10",
+        "通过校验后才执行新增"
+      ],
+      "unknown_phrases": [
+        "运行配置取值未知",
+        "线上部署及实际返回未验证"
+      ],
+      "forbidden_phrases": [
+        "隐藏按钮就不校验",
+        "线上一定成功"
+      ],
+      "app_scope": null
+    },
+    {
+      "case_id": "page-worker",
+      "module_id": "example.page_worker",
+      "topic": "任务受理与完成",
+      "query": "任务受理是否等于处理完成",
+      "source_sha256": {
+        "app/submit.php": "165ac30a69a1a2795f7e28117972d45ec50edc5d0f8b8a5d128169a918f19eca",
+        "support/worker.go": "7bd2bc44c7467d3de23c10af2816d3a06eca091eab160f636035527107addf2f",
+        "support/contract.json": "55fd938a550f311ef919320751d95ff85a149b49f09451a64d782a96bc39c40f"
+      },
+      "facts": [
+        {
+          "fact_id": "FACT-001",
+          "claim": "PHP 服务端提交函数检查租户存在后发布任务并返回 accepted，没有等待工作端完成。",
+          "anchors": [
+            "app:submit.php:2-9"
+          ]
+        },
+        {
+          "fact_id": "FACT-002",
+          "claim": "Go 处理函数在业务保存前确认消息，保存错误直接返回，未在此函数发起重试。",
+          "anchors": [
+            "support:worker.go:12-21"
+          ]
+        },
+        {
+          "fact_id": "FACT-003",
+          "claim": "提交与消费代码的 job-v1 和旁置契约文件的 job-v2 不一致；实际使用的契约和部署未知。",
+          "anchors": [
+            "app:submit.php:6-8",
+            "support:worker.go:12-18",
+            "support:contract.json:1-1"
+          ]
+        }
+      ],
+      "required_phrases": [
+        "受理不等于完成",
+        "先确认消息再保存",
+        "没有发起重试"
+      ],
+      "unknown_phrases": [
+        "契约兼容性未确认",
+        "实际投递与线上重试行为未验证"
+      ],
+      "forbidden_phrases": [
+        "确认消息就代表完成",
+        "失败必定重试"
+      ],
+      "app_scope": null
+    },
+    {
+      "case_id": "native-resource",
+      "module_id": "example.native_resource",
+      "topic": "外部处理与临时文件",
+      "query": "外部处理失败后临时文件是否清理",
+      "source_sha256": {
+        "app/vendor/internal/ReportJob.cs": "feb5e167f2b289397e5386fab7a54e1bd4df2966e6a3c9282500727ae4ac30b9",
+        "support/native/helper.c": "4adbd281fbd5c5bed3ed67123179b176dc3495e0a14431c730de9f26d441ea78",
+        "support/Dockerfile": "804901eaf09428f0df453c3cd3ef95c7e4ac0f97351d683a0cff663719d7a43b"
+      },
+      "facts": [
+        {
+          "fact_id": "FACT-001",
+          "claim": "C# 路径等待外部程序退出；非零退出直接返回，临时文件删除只在零退出分支执行。",
+          "anchors": [
+            "app:vendor/internal/ReportJob.cs:5-14"
+          ]
+        },
+        {
+          "fact_id": "FACT-002",
+          "claim": "C 辅助程序在打开文件后读取首字符并关闭文件，空内容返回非零状态。",
+          "anchors": [
+            "support:native/helper.c:2-9"
+          ]
+        },
+        {
+          "fact_id": "FACT-003",
+          "claim": "构建文件声明编译并复制辅助程序，但实际镜像、可执行文件和部署未验证。",
+          "anchors": [
+            "support:Dockerfile:1-6"
+          ]
+        }
+      ],
+      "required_phrases": [
+        "等待外部处理结束",
+        "成功分支执行临时文件删除",
+        "非零退出分支没有执行该删除"
+      ],
+      "unknown_phrases": [
+        "实际文件遗留情况未运行验证",
+        "实际镜像与部署未验证"
+      ],
+      "forbidden_phrases": [
+        "失败也一定清理",
+        "当前线上镜像已验证"
+      ],
+      "app_scope": "vendor/internal"
+    }
+  ]
+}

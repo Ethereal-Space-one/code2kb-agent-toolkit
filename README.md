@@ -6,6 +6,8 @@
 
 Code2KB Spec 将 Agent Skill、开放知识规范和 Python CLI 组合成可复核的知识生产流程。你选用的 AI 编码助手负责阅读源码、提炼业务与实现逻辑；`code2kb` 负责检查证据绑定、审核记录和发布产物。
 
+**1.2.0 后续补充**：通用全栈盘点、跨语言场景取证，以及非标准源码目录的显式扫描与更清晰的引用诊断。[查看补充说明](CHANGELOG.md)。
+
 [快速开始](#快速开始) · [知识产物](#知识产物) · [独立验证](#独立验证12) · [文档](#文档)
 
 ![Code2KB 1.2：固定源码经 AI 取证与审核发布为知识文件，再供外部 FTS 或向量索引和机器人问答使用](assets/readme/overview.svg)
@@ -95,9 +97,25 @@ python3 -B examples/create_demo.py
 
 ## 扩展与维护
 
+- **[全栈与跨语言取证](skills/extract-app-knowledge/references/全栈范围盘点.md)**：按仓库、构建单元和实际职责盘点；跨层调用、异步、原生组件与配置覆盖按场景取证。[公开演练](conformance/full-stack/README.md)核对知识中的条件和未知。
 - **[长任务接续](docs/0.6.0-runner.md)**：本地任务账本、检查点和恢复命令，提供 [Claude Code](hosts/claude-code/README.md)／[Codex](hosts/codex/README.md) 任务指令适配。
 - **[源码升级复核](docs/1.0.0-public-contract.md)**：比较固定提交，输出需复核的知识范围与缺口的只读计划，供维护者修订。
 - **[源码适配器](docs/adapter-contract.md)**：输出待复核的入口与关系候选；没有专用分析器的语言使用 L1 文件级降级。
+
+<details>
+<summary>扫描自有非标准源码目录</summary>
+
+将 `source_a` 替换为项目配置的仓库 ID：
+
+```bash
+code2kb analyze-candidates --project-root /path/to/knowledge-project \
+  --repository-id source_a --candidate-schema 0.2 \
+  --adapter universal-l1 --scope vendor/internal
+```
+
+显式范围不再因祖先目录名 `vendor` 而整段跳过，范围内的嵌套依赖与生成目录仍会过滤。未知后缀的普通 UTF-8 文本可进入 L1；候选不是已验证的业务事实。详见 [Adapter 契约](docs/adapter-contract.md)。
+
+</details>
 
 <details>
 <summary>查看源码盘点、证据与双版结构（3 张）</summary>
@@ -128,5 +146,7 @@ python3 -B examples/create_demo.py
 源码不能单独证明线上行为、业务政策或授权结果；缺少证据时须保留未知。模型调用、生产 FTS／向量服务和机器人部署由使用方负责。
 
 当前工程版本：`1.2.0`。新项目默认文件协议为 `c2kb-file/1`，旧 `0.8.3` 项目仍受支持。详见[变更记录](CHANGELOG.md)与[路线图](ROADMAP.md)。
+
+全栈适配为 `main` 上的发布后补充；`v1.2.0` 标签仍指向原始发行快照。
 
 [反馈问题](https://github.com/Ethereal-Space-one/code2kb-spec/issues) · [参与贡献](CONTRIBUTING.md) · [Apache License 2.0](LICENSE)
