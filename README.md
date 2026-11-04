@@ -2,122 +2,131 @@
 
 **简体中文** · [English](README.en.md)
 
-![Code2KB Spec：从固定源码提交到可审核的知识库](assets/readme/overview.svg)
+**借助 AI 从代码提炼业务知识，让机器人有据可答。**
 
-借助 AI 从固定源码提交提炼业务逻辑，建立**有证据、可审核、可发布**的知识库，供问答机器人检索业务知识。
+Code2KB Spec 将 Agent Skill、开放知识规范和 Python CLI 组合成可复核的知识生产流程。你选用的 AI 编码助手负责阅读源码、提炼业务与实现逻辑；`code2kb` 负责检查证据绑定、审核记录和发布产物。
 
-Code2KB Spec 是一套面向 AI 编码助手的提示词工程与知识文件规范，提供 Skill、模板和 Python 参考工具。AI 按 Skill 阅读源码、取证并写成业务与研发知识；工具检查文件、证据和发布状态。它适合想把代码中的行为整理成可追溯业务知识，再交给机器人问答的团队。
+[快速开始](#快速开始) · [知识产物](#知识产物) · [独立验证](#独立验证12) · [文档](#文档)
 
-## 工作流程与产物
+![Code2KB 1.2：固定源码经 AI 取证与审核发布为知识文件，再供外部 FTS 或向量索引和机器人问答使用](assets/readme/overview.svg)
 
-`固定 Git 提交 → AI 盘点与取证 → 编写知识 → 审核 → 双版发布 → 外部检索与机器人问答`
+## 知识产物
 
-| 产物 | 内容 | 使用者 |
-| --- | --- | --- |
-| 知识源 | 功能大纲、模块规格、业务与研发正文、待确认事项 | 知识维护者取证、复核和修订；内部规格及过程文件不进入机器人索引 |
-| 发布版本 | 分离的业务版与研发版、版本清单和当前版本指针 | 业务版是业务问答的正文来源；研发版供研发人员追溯实现；清单和指针用于核对版本 |
-| 可选检索扩展 | 从已审核正文生成的主题单元及独立审计信息 | 外部 FTS 或向量索引按受众导入相应单元，供机器人召回证据 |
+| 产物 | 给谁使用、包含什么 |
+| --- | --- |
+| **知识源** | 维护者使用：功能大纲、结构化事实、业务与研发草稿、待确认事项 |
+| **业务版与研发版** | 业务版提供功能、流程、规则与问答；研发版补充实现、接口、方法和源码锚点。版本清单与指针用于核对版本 |
+| **可选检索版** | 外部索引使用：从已审核正文生成的主题单元，保留条件、例外、未知和出处，并附独立评测与审计信息 |
 
-源码升级时，1.0.0 还可生成[只读复核计划](docs/1.0.0-public-contract.md)，帮助定位需重新解释的知识；它不会自动改写知识或批准发布。
+业务机器人可用 **FTS 或向量检索 → 召回正文 → 模型组织答案**。本项目的受审计导入路径是[检索扩展](docs/retrieval-contract.md)；业务机器人只导入业务单元，内部规格和过程文件不进入语料。直接拆分基础业务版建立自有索引时，分块边界、受众隔离、版本切换和评测由使用方负责。
 
-<details>
-<summary>查看源码取证与双版知识示意（3 张）</summary>
+[PetClinic 公开案例](conformance/public-source/petclinic/README.md)记录了从固定源码到业务知识，再到 [SQLite FTS5 召回](conformance/public-source/petclinic/fts5-run.json)的演练。它验证证据定位，尚未验证机器人最终回答。`retrieval-query` 同样只返回候选证据。
 
-图中的代码、文件名和事实编号仅用于说明结构。
+## 快速开始
 
-![固定源码提交后盘点入口，适配器只输出待复核候选](assets/readme/source-adapters.svg)
+需要 **Git、Python 3.9+**，以及能读取本机仓库的 AI 编码助手。CLI 修改类命令依赖 `fcntl` 文件锁，适用于 Linux／macOS 等提供该模块的平台；缺少该模块的平台仍可运行只读检查。
 
-![从固定源码锚点记录可核对的结构化事实](assets/readme/evidence.svg)
-
-![同一业务知识分别进入业务版与研发版](assets/readme/two-views.svg)
-
-</details>
-
-<details>
-<summary>查看可选检索与源码升级复核示意（2 张）</summary>
-
-检索扩展只处理已审核的发布知识；升级计划只读，不自动迁移或批准。
-
-![从已审计的发布版生成按主题组织的可选检索单元](assets/readme/retrieval.svg)
-
-![比较固定源码提交并生成只读升级复核计划](assets/readme/upgrade-review.svg)
-
-</details>
-
-## 快速体验
-
-需要 **Git** 和 **Python 3.9+**。内置示例无需准备自己的源码：
+### 1. 安装并固定源码版本
 
 ```bash
 git clone https://github.com/Ethereal-Space-one/code2kb-spec.git
 cd code2kb-spec
-python3 -B examples/create_demo.py
-```
-
-命令会在临时目录创建小型源码仓库和知识项目，运行 `check`，并打印项目路径。示例用于体验文件结构与检查流程，不会自动生成完整知识库。
-
-### 从发布知识到机器人问答
-
-机器人可用外部 FTS 或向量索引召回业务知识，再由问答模型依据命中的正文组织回答。本项目提供的受审计机器索引路径是[可选检索扩展](docs/retrieval-contract.md)：先发布双版知识，再生成、评测并审计业务检索单元；业务机器人只导入业务单元。若使用方直接拆分基础业务版建立自有索引，分块、条件与未知边界保留、受众隔离和版本切换须自行负责；这不属于本项目受审计的索引路径。`retrieval-query` 只返回候选证据，不生成或验证最终答案。
-
-[PetClinic 公开案例](conformance/public-source/petclinic/README.md)演示了这条路径的一段：固定源码中的“按姓氏查询主人”分支被写成业务知识并生成检索单元；[SQLite FTS5 运行记录](conformance/public-source/petclinic/fts5-run.json)显示，“空白姓氏”可召回该单元。这个小样本验证证据定位，不代表机器人回答或线上表现已通过测试。
-
-## 创建自己的知识项目
-
-### 1. 安装并固定源码版本
-
-知识项目应与源码仓库分开存放。从模板创建配置：
-
-```bash
 python3 -m pip install -e .
-mkdir -p /path/to/knowledge-project
 git init /path/to/knowledge-project
 cp templates/知识库配置.example.json /path/to/knowledge-project/知识库配置.json
 git -C /path/to/source-repo rev-parse HEAD
 ```
 
-编辑 `知识库配置.json`：删去不用的示例仓库，将每个 `repositories` 条目的 `path` 改为本机源码仓库绝对路径，`commit` 改为对应的固定提交 SHA。
+知识项目与源码仓库分开存放。编辑 `知识库配置.json`，删去不用的示例仓库，为每个 `repositories` 条目填写本机仓库绝对路径 `path` 和固定提交 SHA `commit`。
 
-### 2. 盘点入口并编写知识
+### 2. 让 AI 提取知识
 
-让 AI 编码助手读取 [Skill](skills/extract-app-knowledge/SKILL.md)。先核对配置与固定提交，建立 `知识源/功能大纲.md`；再按模块取证、写业务与研发正文。例如：
+将下面的任务交给 AI 编码助手：
 
 ```text
 请读取 <code2kb-spec-root>/skills/extract-app-knowledge/SKILL.md。
-知识项目是 /path/to/knowledge-project。先核对配置中的固定源码提交，
-盘点全范围入口并生成知识源/功能大纲.md；明确登记未知项，
-不要把源码推断写成线上运行结果。
+目标是为 /path/to/knowledge-project 建立源码业务知识库。
+先核对固定提交并建立完整功能大纲，再逐模块取证、写作和复核。
+保留条件和未知，不把源码推断写成线上结果；按项目选定的审核流程推进，发布前核对授权。
 ```
 
-### 3. 检查、审核与发布
+Skill 按阶段加载取证、写作与复核手顺；AI 的模型和执行环境由使用方提供。
 
-知识源写入后，可随时运行结构检查：
+### 3. 检查、审核并发布
 
 ```bash
 code2kb check --project-root /path/to/knowledge-project
 ```
 
-按模块完成影响复核、结论复核、候选准备及授权审核后，再发布并审计：
+按模块完成 `impact`、`confirm-claims` 和 `prepare` 后，选择审核方式：
 
-**审批前选择方式**：人工审核用 `approve`，记录实际审核人的明确批准；自动审核用 `policy-review`，前提是项目已有有效的预授权策略和本次审核记录。策略不覆盖的模块或命中人工门禁的包，保持草稿并交人工审核。两种方式都按模块执行；AI 自检或 `check` 通过不会自动批准。
+| 方式 | 条件与入口 |
+| --- | --- |
+| **人工审核** | 实际审核人明确批准候选和边界后，用 `approve` 记录决定 |
+| **预授权策略审核** | 已有有效策略和本次审核记录时，用 `policy-review` 核对；超范围或命中人工门禁的包保持草稿 |
+
+`check` 通过或 AI 自检不会自动批准。审核通过后发布并审计：
 
 ```bash
 code2kb publish --project-root /path/to/knowledge-project --release-id my-kb-v1
 code2kb audit-release --project-root /path/to/knowledge-project
 ```
 
-`check` 通过不等于知识已可发布。`impact`、`confirm-claims`、`prepare` 和审核命令的参数见[使用指南](docs/usage.md)。
+完整参数、审核记录和发布手顺见[使用指南](docs/usage.md)。
 
-## 文档与支持
+<details>
+<summary>只想先体验文件结构？运行内置示例</summary>
 
-- [使用指南](docs/usage.md)：完整操作手顺与命令
-- [规范](SPEC.md)：文件、证据、审核与发布要求
-- [检索扩展](docs/retrieval-contract.md)：可选检索单元与外部索引边界
-- [版本与兼容性](docs/versioning.md)：工程版本、知识文件协议和项目发布版本
-- [问题反馈](https://github.com/Ethereal-Space-one/code2kb-spec/issues) · [贡献指南](CONTRIBUTING.md) · [变更记录](CHANGELOG.md)
+```bash
+python3 -B examples/create_demo.py
+```
 
-## 使用边界
+脚本在临时目录建立小型源码仓库和知识项目，执行 `check` 并打印路径。它展示文件结构和检查流程，不调用模型或自动生成完整知识库。
 
-源码不能单独证明线上运行、业务政策或授权结果；缺少运行证据时须保留未知项。项目不自带具体业务知识、机器人部署、生产 FTS／向量服务或最终回答模型。
+</details>
 
-当前工程版本：`1.2.0`。新项目默认文件协议为 `c2kb-file/1`；旧 `0.8.3` 项目仍受支持。[保证范围矩阵](docs/assurance-matrix.md)区分工具检查与人工复核。本项目采用 [Apache License 2.0](LICENSE)。
+## 独立验证（1.2）
+
+可选的独立验证者检查“结论是否被引用源码支持”，也可按验证类型回放问答或检查业务文件披露边界。`evidence-pack` 导出应查项；验证者由使用方运行并返回报告，`code2kb` 核对候选、覆盖、摘要与声明身份。
+
+![1.2 可选流程：准备候选、导出证据包、外部验证者校准与复核，再由策略审核核对报告；不通过保持草稿](assets/readme/independent-review.svg)
+
+策略 `1.1` 可要求验证者先通过 `verifier-calibrate` 的注入错误题校准。校准成绩不证明真实项目的判断正确率；验证不通过时模块保持草稿，人工审核仍可单独选择。[查看独立验证者手顺](docs/usage.md#可选独立验证者12)。
+
+## 扩展与维护
+
+- **[长任务接续](docs/0.6.0-runner.md)**：本地任务账本、检查点和恢复命令，提供 [Claude Code](hosts/claude-code/README.md)／[Codex](hosts/codex/README.md) 任务指令适配。
+- **[源码升级复核](docs/1.0.0-public-contract.md)**：比较固定提交，输出需复核的知识范围与缺口的只读计划，供维护者修订。
+- **[源码适配器](docs/adapter-contract.md)**：输出待复核的入口与关系候选；没有专用分析器的语言使用 L1 文件级降级。
+
+<details>
+<summary>查看源码盘点、证据与双版结构（3 张）</summary>
+
+图中的代码、文件名和事实编号仅用于说明结构。
+
+![源码入口盘点与适配器候选；候选须经复核](assets/readme/source-adapters.svg)
+
+![固定提交源码锚点与结构化事实；线上行为仍需独立证据](assets/readme/evidence.svg)
+
+![共享业务正文与补充实现证据的研发版](assets/readme/two-views.svg)
+
+</details>
+
+<details>
+<summary>查看可选检索与源码升级复核（2 张）</summary>
+
+![从已审核知识生成主题单元，评测与审计后供检索使用](assets/readme/retrieval.svg)
+
+![比较固定提交并生成只读升级复核计划](assets/readme/upgrade-review.svg)
+
+</details>
+
+## 文档
+
+[使用指南](docs/usage.md) · [知识文件规范](SPEC.md) · [检索契约](docs/retrieval-contract.md) · [保证范围](docs/assurance-matrix.md) · [版本与兼容性](docs/versioning.md)
+
+源码不能单独证明线上行为、业务政策或授权结果；缺少证据时须保留未知。模型调用、生产 FTS／向量服务和机器人部署由使用方负责。
+
+当前工程 **1.2.0**；新项目默认文件协议为 `c2kb-file/1`，旧 `0.8.3` 项目仍受支持。详见[变更记录](CHANGELOG.md)与[路线图](ROADMAP.md)。
+
+[反馈问题](https://github.com/Ethereal-Space-one/code2kb-spec/issues) · [参与贡献](CONTRIBUTING.md) · [Apache License 2.0](LICENSE)
