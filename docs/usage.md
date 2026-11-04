@@ -49,6 +49,17 @@ code2kb --version
 
 ## 项目结构
 
+全量或多仓库项目先按[全栈范围盘点](../skills/extract-app-knowledge/references/全栈范围盘点.md)核对仓库、构建单元和依赖版本，再按实际职责选择适配指南。出现跨层调用、消息任务、原生依赖或配置覆盖时，按需读取[跨语言场景取证](../skills/extract-app-knowledge/references/跨语言场景取证.md)；语言标签不决定前后端角色。
+
+调查固定提交中的自有非标准目录时，可显式指定范围：
+
+```bash
+code2kb analyze-candidates --project-root /项目 --repository-id source \
+  --candidate-schema 0.2 --adapter universal-l1 --scope vendor/internal
+```
+
+显式范围可越过其祖先的默认目录过滤，范围下新增的依赖／生成目录仍会跳过。安全限制和固定提交边界不变；完整语义见 [Adapter 契约](adapter-contract.md)。这里输出的是待复核文件候选，入口及业务结论继续按源码取证。
+
 ```text
 知识项目/
 ├── 知识库配置.json

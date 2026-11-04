@@ -15,7 +15,7 @@ from .uniapp_pages import read_uniapp_pages
 from .sdk import validate_result
 
 
-ADAPTER_VERSION = "0.1"
+ADAPTER_VERSION = "0.2"
 SCHEMA_VERSION = "0.2"
 MANIFESTS = {
     "builtin-mixed": {"name": "builtin-mixed", "version": ADAPTER_VERSION,
@@ -45,6 +45,7 @@ def _files(repo: str, commit: str, scope: str | None) -> tuple[list[tuple[str, i
     selected: list[tuple[str, int]] = []
     skipped = Counter()
     in_scope = 0
+    scope_depth = len(PurePosixPath(scope).parts) if scope else 0
     for entry in entries:
         try:
             descriptor, encoded = entry.split(b"\t", 1)
@@ -60,7 +61,11 @@ def _files(repo: str, commit: str, scope: str | None) -> tuple[list[tuple[str, i
         if mode not in {"100644", "100755"} or kind != "blob":
             skipped["non_regular"] += 1
             continue
-        if EXCLUDED_DIRS.intersection(PurePosixPath(path).parts):
+        parts = PurePosixPath(path).parts
+        # An explicit scope selects its root even under a normally excluded
+        # directory. Exclusions below that root still apply; Git metadata never
+        # becomes source material. Other file-safety limits are unchanged.
+        if ".git" in parts or EXCLUDED_DIRS.intersection(parts[scope_depth:]):
             skipped["generated_or_dependency"] += 1
             continue
         if size == "-" or int(size) == 0 or int(size) > MAX_BYTES:

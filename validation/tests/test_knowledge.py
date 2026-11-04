@@ -859,7 +859,47 @@ class KnowledgeTests(unittest.TestCase):
         write(path, path.read_text(encoding="utf-8").replace("METHOD-001 | frontend:dummy.txt:1, backend:dummy.txt:1", "METHOD-999 | frontend:dummy.txt:1, backend:dummy.txt:1"))
         result = self.run_cli("check")
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("关联不一致", result.stderr)
+        self.assertIn("引用的方法 METHOD-999 不存在", result.stderr)
+        self.assertIn("API-001", result.stderr)
+        self.assertIn("方法职责", result.stderr)
+
+    def test_catalog_diagnostics_identify_missing_reverse_links_and_api(self) -> None:
+        path = self.module / "结构化规格.md"
+        original = path.read_text(encoding="utf-8")
+        mutations = [
+            ("| 核心 | API-001 |", "| 核心 | 无 |", "METHOD-001 的“关联接口”缺少 API-001"),
+            ("| handler | METHOD-001 |", "| handler | 无 |", "API-001 的“主处理方法”缺少 METHOD-001"),
+            ("| 核心 | API-001 |", "| 核心 | API-999 |", "引用的接口 API-999 不存在"),
+        ]
+        for old, new, expected in mutations:
+            with self.subTest(expected=expected):
+                changed = original.replace(old, new)
+                if "API-999" in new:
+                    changed = changed.replace("| handler | METHOD-001 |", "| handler | 无 |")
+                write(path, changed)
+                result = self.run_cli("check")
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(expected, result.stderr)
+                self.assertIn("结构化规格.md", result.stderr)
+        write(path, original)
+
+    def test_catalog_accepts_bidirectional_many_to_many_associations(self) -> None:
+        path = self.module / "结构化规格.md"
+        original = path.read_text(encoding="utf-8")
+        extra_api = "| API-002 | RPC Query | example caller | handler | METHOD-001,METHOD-002 | backend:dummy.txt:1 |\n"
+        extra_method = "| METHOD-002 | query_helper() | 辅助查询 | 辅助 | API-001,API-002 | backend:dummy.txt:1 |\n"
+        changed = original.replace("| handler | METHOD-001 |", "| handler | METHOD-001,METHOD-002 |")
+        changed = changed.replace("\n\n### API-001", "\n" + extra_api + "\n### API-002\n\n关联索引不表示直接调用。\n\n### API-001", 1)
+        changed = changed.replace("\n\n## 接口契约", "\n| ENT-001 | API-002 | 查询附加路径 | frontend:dummy.txt:1 |\n\n## 接口契约", 1)
+        changed = changed.replace("| 核心 | API-001 |", "| 核心 | API-001,API-002 |")
+        changed = changed.replace("\n\n### METHOD-001", "\n" + extra_method + "\n### METHOD-001", 1)
+        write(path, changed)
+        docs, outline = core.read_documents(self.source)
+        _, config = core.read_config(self.project.resolve())
+        spec = next(doc for doc in docs if doc.doc_type == "spec")
+        apis, methods, _ = core.validate_spec_catalog(spec, outline, config, {}, core.document_revisions(spec, config))
+        self.assertEqual(set(apis), {"API-001", "API-002"})
+        self.assertEqual(set(methods), {"METHOD-001", "METHOD-002"})
 
     def test_reject_catalog_drift_from_spec(self) -> None:
         path = self.module / "接口与调用.md"

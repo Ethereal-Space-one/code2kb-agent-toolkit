@@ -656,12 +656,16 @@ def validate_spec_catalog(
             core_ids.add(method_id)
     for api_id, references in api_to_methods.items():
         for method_id in references:
-            if method_id not in method_ids or api_id not in method_to_apis[method_id]:
-                raise KnowledgeError(f"{doc.relative}: {api_id} 与 {method_id} 关联不一致")
+            if method_id not in method_ids:
+                raise KnowledgeError(f"{doc.relative}: {api_id} 与 {method_id} 关联不一致：引用的方法 {method_id} 不存在；请检查“方法职责”表")
+            if api_id not in method_to_apis[method_id]:
+                raise KnowledgeError(f"{doc.relative}: {api_id} 与 {method_id} 关联不一致：“方法职责”中 {method_id} 的“关联接口”缺少 {api_id}")
     for method_id, references in method_to_apis.items():
         for api_id in references:
-            if api_id not in api_ids or method_id not in api_to_methods[api_id]:
-                raise KnowledgeError(f"{doc.relative}: {method_id} 与 {api_id} 关联不一致")
+            if api_id not in api_ids:
+                raise KnowledgeError(f"{doc.relative}: {method_id} 与 {api_id} 关联不一致：引用的接口 {api_id} 不存在；请检查“接口契约”表")
+            if method_id not in api_to_methods[api_id]:
+                raise KnowledgeError(f"{doc.relative}: {method_id} 与 {api_id} 关联不一致：“接口契约”中 {api_id} 的“主处理方法”缺少 {method_id}")
     seen_actions: set[tuple[str, str]] = set()
     for entry_id, api_id, condition, evidence in actions:
         if known_entries.get(entry_id) != doc.module_id or api_id not in api_ids or not condition or (entry_id, api_id) in seen_actions:
