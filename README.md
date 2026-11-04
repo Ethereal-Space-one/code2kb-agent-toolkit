@@ -127,6 +127,6 @@ python3 -B examples/create_demo.py
 
 源码不能单独证明线上行为、业务政策或授权结果；缺少证据时须保留未知。模型调用、生产 FTS／向量服务和机器人部署由使用方负责。
 
-当前工程 **1.2.0**；新项目默认文件协议为 `c2kb-file/1`，旧 `0.8.3` 项目仍受支持。详见[变更记录](CHANGELOG.md)与[路线图](ROADMAP.md)。
+当前工程版本：`1.2.0`。新项目默认文件协议为 `c2kb-file/1`，旧 `0.8.3` 项目仍受支持。详见[变更记录](CHANGELOG.md)与[路线图](ROADMAP.md)。
 
 [反馈问题](https://github.com/Ethereal-Space-one/code2kb-spec/issues) · [参与贡献](CONTRIBUTING.md) · [Apache License 2.0](LICENSE)

@@ -128,6 +128,6 @@ Code, filenames, and fact IDs are illustrative. These detail diagrams use Chines
 
 Source code alone cannot prove production behavior, business policy, or authorization outcomes; unknowns remain explicit without evidence. Consumers provide model execution, production FTS/vector services, and bot deployment.
 
-Current toolkit: **1.2.0**. New projects default to `c2kb-file/1`; existing `0.8.3` projects remain supported. See the [changelog](CHANGELOG.md) and [roadmap](ROADMAP.md). The normative specification is in Simplified Chinese.
+Current project version: `1.2.0`. New projects default to `c2kb-file/1`; existing `0.8.3` projects remain supported. See the [changelog](CHANGELOG.md) and [roadmap](ROADMAP.md). The normative specification is in Simplified Chinese.
 
 [Report an issue](https://github.com/Ethereal-Space-one/code2kb-spec/issues) · [Contribute](CONTRIBUTING.md) · [Apache License 2.0](LICENSE)
