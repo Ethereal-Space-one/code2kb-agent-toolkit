@@ -1,3 +1,5 @@
+![Code2KB Agent Toolkit: a source-code window, evidence notes and an open knowledge book with a sprout](assets/readme/header.svg)
+
 # Code2KB Agent Toolkit
 
 [简体中文](README.md) · **English**

@@ -1,3 +1,5 @@
+![Code2KB Agent Toolkit：源码窗口、证据便笺与萌芽知识书页组成的标题插画](assets/readme/header.svg)
+
 # Code2KB Agent Toolkit
 
 **简体中文** · [English](README.en.md)

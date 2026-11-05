@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1640" height="580" viewBox="0 0 1640 580" role="img" aria-labelledby="title desc">
+<title id="title">Code2KB Agent Toolkit</title>
+<desc id="desc">A warm, pale-blue header illustration. A source-code window, evidence notes and an open knowledge book with a small sprout accompany the Code2KB Agent Toolkit title.</desc>
+<rect x="0" y="0" width="1640" height="580" rx="18" fill="#f9faf8" stroke="none" stroke-width="1.6" />
+<ellipse cx="1281" cy="305" rx="283" ry="224" fill="#edf4f7"/>
+<ellipse cx="1421" cy="397" rx="126" ry="108" fill="#f0f3ec"/>
+<circle cx="1500" cy="89" r="1.5" fill="#b9cdd6"/>
+<circle cx="1524" cy="89" r="1.5" fill="#b9cdd6"/>
+<circle cx="1548" cy="89" r="1.5" fill="#b9cdd6"/>
+<circle cx="1500" cy="113" r="1.5" fill="#b9cdd6"/>
+<circle cx="1524" cy="113" r="1.5" fill="#b9cdd6"/>
+<circle cx="1548" cy="113" r="1.5" fill="#b9cdd6"/>
+<circle cx="1500" cy="137" r="1.5" fill="#b9cdd6"/>
+<circle cx="1524" cy="137" r="1.5" fill="#b9cdd6"/>
+<circle cx="1548" cy="137" r="1.5" fill="#b9cdd6"/>
+<text x="84" y="83" fill="#66869a" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, Noto Sans CJK SC, sans-serif" font-size="17" font-weight="500" letter-spacing="3">A TOOLKIT FOR CODING AGENTS</text>
+<text x="78" y="220" fill="#273e4f" font-family="Noto Serif CJK SC, Georgia, Times New Roman, serif" font-size="112" font-weight="400" >Code2KB</text>
+<text x="86" y="298" fill="#5e8eab" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, Noto Sans CJK SC, sans-serif" font-size="59" font-weight="400" >Agent Toolkit</text>
+<path d="M88 326 C219 319 375 320 511 324" fill="none" stroke="#c2d8e3" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+<text x="87" y="385" fill="#607985" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, Noto Sans CJK SC, sans-serif" font-size="19" font-weight="500" letter-spacing="1.6">SOURCE  /  EVIDENCE  /  KNOWLEDGE</text>
+<path d="M87 427 H137" fill="none" stroke="#bdcfd6" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+<text x="151" y="433" fill="#607985" font-family="Noto Serif CJK SC, Georgia, Times New Roman, serif" font-size="24" font-weight="400" >From source code to knowledge.</text>
+<g transform="translate(902 118) rotate(-5 160 110)">
+<rect x="5" y="12" width="348" height="228" rx="15" fill="#dce8ed" stroke="none" stroke-width="1.6" opacity="0.5"/>
+<rect x="0" y="0" width="348" height="228" rx="15" fill="#fcfdfb" stroke="#bed1db" stroke-width="1.6" />
+<path d="M1 42 H347" fill="none" stroke="#d8e4e9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+<circle cx="19" cy="21" r="3.5" fill="#b9cdd6"/>
+<circle cx="32" cy="21" r="3.5" fill="#b9cdd6"/>
+<circle cx="45" cy="21" r="3.5" fill="#b9cdd6"/>
+<text x="322" y="26" fill="#7a94a2" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, Noto Sans CJK SC, sans-serif" font-size="13" font-weight="400" text-anchor="end" letter-spacing="1.5">source</text>
+<path d="M43 88 27 105 43 122 M73 88 89 105 73 122 M64 83 51 128" fill="none" stroke="#6f99b0" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" />
+<rect x="113" y="91" width="137" height="5" rx="2.5" fill="#b0c9d7" stroke="none" stroke-width="1.6" />
+<rect x="113" y="110" width="187" height="5" rx="2.5" fill="#d2dfe5" stroke="none" stroke-width="1.6" />
+<rect x="29" y="155" width="90" height="5" rx="2.5" fill="#c1d6df" stroke="none" stroke-width="1.6" />
+<rect x="133" y="155" width="147" height="5" rx="2.5" fill="#d5e2e7" stroke="none" stroke-width="1.6" />
+<rect x="29" y="177" width="154" height="5" rx="2.5" fill="#d5e2e7" stroke="none" stroke-width="1.6" />
+<rect x="197" y="177" width="102" height="5" rx="2.5" fill="#bdcfd6" stroke="none" stroke-width="1.6" />
+</g>
+<g transform="translate(1292 97) rotate(8 102 104)">
+<rect x="5" y="8" width="194" height="204" rx="10" fill="#dae6e6" stroke="none" stroke-width="1.6" opacity="0.4"/>
+<rect x="0" y="0" width="194" height="204" rx="10" fill="#fdfdf9" stroke="#ccd9d9" stroke-width="1.6" />
+<text x="21" y="35" fill="#7c938b" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, Noto Sans CJK SC, sans-serif" font-size="13" font-weight="500" letter-spacing="2">EVIDENCE</text>
+<rect x="21" y="65" width="142" height="4" rx="2" fill="#c8d9d5" stroke="none" stroke-width="1.6" />
+<rect x="21" y="84" width="115" height="4" rx="2" fill="#c8d9d5" stroke="none" stroke-width="1.6" />
+<rect x="21" y="103" width="132" height="4" rx="2" fill="#c8d9d5" stroke="none" stroke-width="1.6" />
+<circle cx="38" cy="151" r="16" fill="#eaf1eb"/>
+<path d="m30 151 6 6 12-13" fill="none" stroke="#729484" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+<rect x="68" y="147" width="94" height="5" rx="2.5" fill="#c8d9d5" stroke="none" stroke-width="1.6" />
+</g>
+<ellipse cx="1241" cy="477" rx="250" ry="20" fill="#cfdee5" opacity="0.45"/>
+<path d="M1018 317 Q1121 286 1231 332 Q1345 284 1459 317 L1459 465 Q1344 432 1231 481 Q1118 436 1018 465 Z" fill="#dceaf1" stroke="#9db9c9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1029 303 Q1126 279 1231 322 Q1340 280 1447 303 L1447 449 Q1340 426 1231 469 Q1126 427 1029 449 Z" fill="#fcfdfb" stroke="#b9d0dc" stroke-width="2" stroke-linejoin="round"/>
+<path d="M1231 323 V469" fill="none" stroke="#aac5d4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M1061 345 Q1127 335 1196 355" fill="none" stroke="#cfdee5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M1061 369 Q1127 359 1196 379" fill="none" stroke="#cfdee5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M1061 393 Q1117 385 1168 397" fill="none" stroke="#cfdee5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M1269 354 Q1331 335 1412 343" fill="none" stroke="#cfdee5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M1269 378 Q1331 359 1412 367" fill="none" stroke="#cfdee5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M1269 402 Q1324 386 1389 391" fill="none" stroke="#cfdee5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M1232 321 C1227 295 1233 264 1248 237" fill="none" stroke="#7e9f92" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M1236 279 C1205 281 1193 260 1194 243 C1220 241 1238 253 1236 279Z" fill="#e6eee6" stroke="#88a898" stroke-width="2"/>
+<path d="M1242 254 C1249 228 1273 219 1293 223 C1291 247 1268 258 1242 254Z" fill="#e8f0ea" stroke="#88a898" stroke-width="2"/>
+<path d="M886 302 v16 M878 310 h16" fill="none" stroke="#b4c6cf" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M1475 260 v17 M1467 268 h16" fill="none" stroke="#a6bfcb" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M914 395 C906 454 938 481 988 484" fill="none" stroke="#c2d4dc" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 8"/>
+<circle cx="994" cy="483" r="4" fill="#b6cdd8"/>
+<path d="M84 518 H1556" fill="none" stroke="#dce6e8" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" />
+<text x="84" y="552" fill="#7c96a4" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, Noto Sans CJK SC, sans-serif" font-size="13" font-weight="500" letter-spacing="2">CODE2KB AGENT TOOLKIT</text>
+<text x="1556" y="552" fill="#7c96a4" font-family="Noto Serif CJK SC, Georgia, Times New Roman, serif" font-size="16" font-weight="400" text-anchor="end">Code, carefully understood.</text>
+</svg>
