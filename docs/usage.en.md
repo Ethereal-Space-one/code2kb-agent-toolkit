@@ -4,7 +4,7 @@
 
 **For knowledge maintainers.** Give the [Skill entry](../skills/extract-app-knowledge/SKILL.md) to your AI coding agent; this guide explains your setup and decisions. Neither document belongs in a bot's knowledge corpus.
 
-> Applies to the unreleased `2.0.0` toolkit. The command remains `code2kb`. Audit old-brand releases using the version that generated them; see the [rename notes](agent-toolkit-rebrand-plan.md).
+> Applies to the `2.0.0` toolkit. The command remains `code2kb`. Audit old-brand releases using the version that generated them; see the [rename notes](agent-toolkit-rebrand-plan.md).
 
 For a project containing an old-brand release, retain the original project. Reuse its configuration, knowledge sources and required review materials in a new knowledge Git project, check them and follow the normal review and publication steps. Do not copy the old release directory; this tool will not overwrite it directly.
 

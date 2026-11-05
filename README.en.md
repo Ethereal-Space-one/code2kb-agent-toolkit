@@ -164,7 +164,7 @@ Code and IDs in these diagrams illustrate the structure. The detail diagrams use
 | Import into retrieval | [Retrieval contract](docs/retrieval-contract.md) |
 | Understand guarantees | [Assurance boundaries](docs/assurance-matrix.md) |
 
-Current project version: `2.0.0` (unreleased). Historical tags and releases retain their original snapshots.
+Current project version: `2.0.0`. See the [release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.0.0); historical tags and releases retain their original snapshots.
 
 Formerly Code2KB Spec, **Code2KB Agent Toolkit** now uses `code2kb-agent-toolkit` for its repository and Python distribution; the command remains `code2kb`. No old-name compatibility or automatic migration is provided. Audit older releases with the tool version that generated them. Existing knowledge sources can be checked, maintained and republished; this rename does not update deployed bots or indexes. See the [rename notes](docs/agent-toolkit-rebrand-plan.md) and [versioning](docs/versioning.md).
 
