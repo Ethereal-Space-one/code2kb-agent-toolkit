@@ -168,6 +168,8 @@ Current project version: `2.0.0` (unreleased). Historical tags and releases reta
 
 Formerly Code2KB Spec, **Code2KB Agent Toolkit** now uses `code2kb-agent-toolkit` for its repository and Python distribution; the command remains `code2kb`. No old-name compatibility or automatic migration is provided. Audit older releases with the tool version that generated them. Existing knowledge sources can be checked, maintained and republished; this rename does not update deployed bots or indexes. See the [rename notes](docs/agent-toolkit-rebrand-plan.md) and [versioning](docs/versioning.md).
 
+If a project contains an old-brand release, retain that project and reuse its configuration, knowledge sources and required review materials in a new knowledge Git project. Check them before publishing. The new tool blocks overwriting an old-brand snapshot directly.
+
 Source alone cannot establish production behavior or business policy. Preserve unknowns where evidence is missing.
 
 [Report an issue](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/issues) · [Contribute](CONTRIBUTING.md) · [Apache License 2.0](LICENSE)

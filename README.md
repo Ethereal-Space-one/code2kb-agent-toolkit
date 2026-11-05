@@ -168,6 +168,8 @@ code2kb analyze-candidates --project-root /path/to/knowledge-project \
 
 本项目由 Code2KB Spec 更名为 **Code2KB Agent Toolkit**，仓库和 Python 包标识统一为 `code2kb-agent-toolkit`，命令仍为 `code2kb`。不提供旧名称兼容或自动迁移：旧版发布物请使用其生成时对应的工具审计；已有知识源经检查后可继续维护并重新发布。更名不会自动更新机器人或索引。详见[更名说明](docs/agent-toolkit-rebrand-plan.md)与[版本管理](docs/versioning.md)。
 
+已有旧品牌发布目录时，保留原项目；在新的知识 Git 项目中复用配置、知识源及所需审核材料，经检查后发布。新工具会阻止直接覆盖旧品牌快照。
+
 源码不能单独证明线上表现或业务政策；没有证据的部分保留未知。
 
 [反馈问题](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/issues) · [参与贡献](CONTRIBUTING.md) · [Apache License 2.0](LICENSE)

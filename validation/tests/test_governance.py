@@ -712,6 +712,18 @@ class GovernanceTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("不支持的发布生成者：Other Toolkit", result.stderr)
 
+    def test_publish_refuses_existing_old_brand_snapshot_without_changes(self):
+        frozen = Path(__file__).resolve().parents[2] / "conformance/legacy-release/发布"
+        release = self.project / "发布"
+        shutil.copytree(frozen, release)
+        self.commit_release("保留旧品牌发布快照")
+        before = {p.relative_to(release): p.read_bytes() for p in release.rglob("*") if p.is_file()}
+        result = self.publish("new-brand-v1")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("不支持的发布生成者：Code2KB Spec", result.stderr)
+        after = {p.relative_to(release): p.read_bytes() for p in release.rglob("*") if p.is_file()}
+        self.assertEqual(before, after)
+
     def test_prepare_refuses_process_vocabulary_in_topics(self):
         result = self.run_cli("prepare", "--module-id", "example.order.query", "--business-topics", "用户操作", "--business-unknowns", "写入方法带事务注解且经同类自身代理调用", "--business-keywords", "操作", "--refresh")
         self.assertNotEqual(result.returncode, 0)

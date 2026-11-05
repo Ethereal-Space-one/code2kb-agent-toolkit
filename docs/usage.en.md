@@ -6,6 +6,8 @@
 
 > Applies to the unreleased `2.0.0` toolkit. The command remains `code2kb`. Audit old-brand releases using the version that generated them; see the [rename notes](agent-toolkit-rebrand-plan.md).
 
+For a project containing an old-brand release, retain the original project. Reuse its configuration, knowledge sources and required review materials in a new knowledge Git project, check them and follow the normal review and publication steps. Do not copy the old release directory; this tool will not overwrite it directly.
+
 ## What English support covers
 
 Use English instructions and generate English business knowledge, engineering explanations, navigation and retrieval text. One project has one output language; conversation language and source programming language are independent.
