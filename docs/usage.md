@@ -4,7 +4,7 @@
 
 本文件面向知识库维护者；AI 使用独立的 [Skill 入口](../skills/extract-app-knowledge/SKILL.md)。操作手顺与 AI 指令都不进入机器人语料。
 
-> 适用于工程 `2.0.0` 待发布版：命令仍为 `code2kb`；源文件协议保持不变，旧品牌发布快照请用生成时对应的工具审计。AI 的执行入口是 [`skills/extract-app-knowledge/SKILL.md`](../skills/extract-app-knowledge/SKILL.md)。
+> 适用于工程 `2.0.0`：命令仍为 `code2kb`；源文件协议保持不变，旧品牌发布快照请用生成时对应的工具审计。AI 的执行入口是 [`skills/extract-app-knowledge/SKILL.md`](../skills/extract-app-knowledge/SKILL.md)。
 
 ## 工作方式
 

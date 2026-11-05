@@ -164,7 +164,7 @@ code2kb analyze-candidates --project-root /path/to/knowledge-project \
 | 导入检索系统 | [检索契约](docs/retrieval-contract.md) |
 | 判断工具保证到哪里 | [保证范围](docs/assurance-matrix.md) |
 
-当前工程版本：`2.0.0`（待发布）。历史标签与 Release 保留原始快照。
+当前工程版本：`2.0.0`。查看 [Release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.0.0)；历史标签与 Release 保留原始快照。
 
 本项目由 Code2KB Spec 更名为 **Code2KB Agent Toolkit**，仓库和 Python 包标识统一为 `code2kb-agent-toolkit`，命令仍为 `code2kb`。不提供旧名称兼容或自动迁移：旧版发布物请使用其生成时对应的工具审计；已有知识源经检查后可继续维护并重新发布。更名不会自动更新机器人或索引。详见[更名说明](docs/agent-toolkit-rebrand-plan.md)与[版本管理](docs/versioning.md)。
 
