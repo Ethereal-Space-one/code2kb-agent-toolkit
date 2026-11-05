@@ -1,10 +1,10 @@
-# Code2KB Spec 使用指南
+# Code2KB Agent Toolkit 使用指南
 
 **简体中文** · [English](usage.en.md)
 
 本文件面向知识库维护者；AI 使用独立的 [Skill 入口](../skills/extract-app-knowledge/SKILL.md)。操作手顺与 AI 指令都不进入机器人语料。
 
-> 适用于工程 `1.2.0`：新项目默认 `c2kb-file/1`，旧 `0.8.3` 项目继续受支持。AI 的执行入口是 [`skills/extract-app-knowledge/SKILL.md`](../skills/extract-app-knowledge/SKILL.md)。
+> 适用于工程 `2.0.0` 待发布版：命令仍为 `code2kb`；源文件协议保持不变，旧品牌发布快照请用生成时对应的工具审计。AI 的执行入口是 [`skills/extract-app-knowledge/SKILL.md`](../skills/extract-app-knowledge/SKILL.md)。
 
 ## 工作方式
 
@@ -37,6 +37,8 @@ code2kb --version
 
 两种入口调用同一参考实现。
 
+已有旧品牌发布快照时，保留原项目供旧工具审计。新建知识 Git 项目，复用配置、知识源与所需审核材料，经检查后按现有流程发布；不复制旧发布目录，新工具也不会直接覆盖它。
+
 ## 新建知识项目
 
 1. 为知识库建立独立 Git 项目。
@@ -47,7 +49,7 @@ code2kb --version
 项目 `content_language` 可选 `zh-CN`（缺省）或 `en`。正文、问答和生成导航使用所选语言；英文业务及研发文件须显式声明 `content_language: en`。AI 交互语言、知识输出语言、源码编程语言分别处理。固定文件名、表头、枚举和 ID 保留；英文流程见[英文使用指南](usage.en.md)。修改语言或翻译正文后仍需刷新候选和重新审核，不能沿用旧批准。
 
 ```text
-请完整读取 <code2kb-spec-root>/skills/extract-app-knowledge/SKILL.md，
+请完整读取 <toolkit-root>/skills/extract-app-knowledge/SKILL.md，
 按“当前任务”只加载所需参考文件和模板。
 知识项目为 /path/to/knowledge-project，
 本次任务是建立全范围功能大纲。

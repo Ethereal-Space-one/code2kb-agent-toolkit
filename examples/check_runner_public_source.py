@@ -132,7 +132,7 @@ def main() -> int:
         run(project, "run-execute", "--run-id", run_id, "--task-id", "audit")
         state = run(project, "run-status", "--run-id", run_id)
         assert state["run_status"] == "completed"
-        print(json.dumps({"source": "Code2KB Spec committed open-source repository", "release_id": release_id,
+        print(json.dumps({"source": "Code2KB Agent Toolkit committed open-source repository", "release_id": release_id,
                           "tasks": state["completed_tasks"], "status": "passed",
                           "boundary": "process recovery and source traceability only; not model answer quality"}, ensure_ascii=False, indent=2))
     return 0

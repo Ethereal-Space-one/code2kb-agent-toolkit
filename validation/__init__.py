@@ -1,1 +1,1 @@
-"""Code2KB Spec reference implementation."""
+"""Code2KB Agent Toolkit reference implementation."""

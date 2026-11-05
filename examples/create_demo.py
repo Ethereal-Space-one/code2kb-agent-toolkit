@@ -160,7 +160,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, help="用于创建示例的空目录；省略时使用临时目录")
     args = parser.parse_args()
-    output = args.output or Path(tempfile.mkdtemp(prefix="code2kb-spec-demo-"))
+    output = args.output or Path(tempfile.mkdtemp(prefix="code2kb-demo-"))
     try:
         project = build(output.resolve())
     except (ValueError, subprocess.CalledProcessError) as exc:

@@ -7,9 +7,9 @@ from setuptools import setup
 ROOT = Path(__file__).resolve().parent
 
 setup(
-    name="code2kb-spec",
+    name="code2kb-agent-toolkit",
     version=(ROOT / "VERSION").read_text(encoding="utf-8").strip(),
-    description="An evidence-aware specification and reference implementation for turning code into governed knowledge bases.",
+    description="An AI agent toolkit for turning source code into evidence-backed knowledge for Q&A.",
     long_description=(ROOT / "README.md").read_text(encoding="utf-8"),
     long_description_content_type="text/markdown",
     packages=["validation", "validation.adapters"],

@@ -40,14 +40,20 @@ def main() -> int:
         failures.append("英文 README 的当前工程版本不一致")
     if f"## [{version}]" not in read("CHANGELOG.md"):
         failures.append("CHANGELOG 缺少当前工程版本")
-    if f"## 已发布：{version}" not in read("ROADMAP.md"):
-        failures.append("路线图未将当前工程版本标为已发布")
+    roadmap = read("ROADMAP.md")
+    released = f"## 已发布：{version}" in roadmap
+    pending = f"## 待发布：{version}" in roadmap
+    if released == pending:
+        failures.append("路线图须将当前工程版本唯一标为已发布或待发布")
+    changelog_pending = f"## [{version}] - 待发布" in read("CHANGELOG.md")
+    if changelog_pending != pending:
+        failures.append("CHANGELOG 与路线图的发布状态不一致")
 
     versioning = read("docs/versioning.md")
     engineering_row = match(r"^\| 工程发行版本 \| ([^|]+) \|", versioning, "工程版本表行", failures)
     protocol_row = match(r"^\| 文件协议兼容标识 \| ([^|]+) \|", versioning, "协议版本表行", failures)
     if engineering_row.strip() != f"`{version}`":
-        failures.append("版本管理的当前工程版本不一致或仍标为候选")
+        failures.append("版本管理的当前工程版本不一致")
     if protocol_row.strip() != f"`{protocol}`":
         failures.append("版本管理的文件协议标识与校验器不一致")
 
@@ -61,8 +67,9 @@ def main() -> int:
     )
     if f"`{legacy_protocol}`" not in current_row:
         failures.append("已发布工程的历史文件协议标识不一致")
-    if re.search(rf"^\| `{re.escape(series)}` \|[^\n]*候选", compatibility, re.MULTILINE):
-        failures.append("已发布工程在兼容矩阵中仍标为候选")
+    row_pending = bool(re.search(rf"^\| `{re.escape(series)}` \|[^\n]*(候选|待发布)", compatibility, re.MULTILINE))
+    if row_pending != pending:
+        failures.append("兼容矩阵与路线图的发布状态不一致")
 
     template = json.loads(read("templates/知识库配置.example.json"))
     report = json.loads(read("conformance/expected/report.json"))
@@ -80,7 +87,8 @@ def main() -> int:
         for failure in failures:
             print(f"- {failure}")
         return 1
-    print(f"工作树版本边界检查通过：工程基线 {version}；新项目文件协议 {protocol}；历史兼容 {legacy_protocol}")
+    state = "待发布" if pending else "已发布"
+    print(f"工作树版本边界检查通过：工程基线 {version}（{state}）；新项目文件协议 {protocol}；历史源文件 {legacy_protocol}")
     return 0
 
 

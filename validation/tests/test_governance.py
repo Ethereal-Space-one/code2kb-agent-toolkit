@@ -593,7 +593,7 @@ class GovernanceTests(unittest.TestCase):
         self.assertEqual(pointer["release_id"], "v2")
         self.assertEqual(pointer["standard_version"], core.STANDARD_VERSION)
         self.assertEqual(pointer["history_backend"], "git")
-        self.assertEqual(pointer["generated_by"]["name"], "Code2KB Spec")
+        self.assertEqual(pointer["generated_by"]["name"], "Code2KB Agent Toolkit")
         self.assertTrue(pointer["generated_by"]["version"])
         self.assertTrue((self.project / "发布/研发版/目录.md").is_file())
         self.assertFalse((self.project / "发布/版本清单/v1.json").exists())
@@ -622,7 +622,7 @@ class GovernanceTests(unittest.TestCase):
         self.assertEqual(pointer["history_backend"], "git")
         self.assertEqual(pointer["standard_version"], core.STANDARD_VERSION)
         self.assertEqual(pointer["release_id"], "v1")
-        self.assertEqual(pointer["generated_by"], {"name": "Code2KB Spec", "version": core.IMPLEMENTATION_VERSION})
+        self.assertEqual(pointer["generated_by"], {"name": "Code2KB Agent Toolkit", "version": core.IMPLEMENTATION_VERSION})
         self.assertNotEqual(pointer["generated_by"]["version"], pointer["standard_version"])
         self.assertEqual(pointer["business_path"], "发布/业务版")
         self.assertEqual(pointer["engineering_path"], "发布/研发版")
@@ -630,7 +630,7 @@ class GovernanceTests(unittest.TestCase):
         release_info = (self.project / "发布/业务版/发布信息.md").read_text(encoding="utf-8")
         self.assertIn("内容版本：v1", release_info)
         self.assertIn(f"知识规范：{core.STANDARD_VERSION}", release_info)
-        self.assertIn(f"生成工具：Code2KB Spec {core.IMPLEMENTATION_VERSION}", release_info)
+        self.assertIn(f"生成工具：Code2KB Agent Toolkit {core.IMPLEMENTATION_VERSION}", release_info)
 
     def test_audit_rejects_invalid_history_backend(self):
         self.assertEqual(self.publish("v1").returncode, 0)
@@ -674,41 +674,55 @@ class GovernanceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "禁用表述"):
             scan_business_terms(core, "METHOD-001", "旧目录.md", source_urls=False)
 
-    def test_frozen_08_source_url_fixture_remains_auditable(self):
+    def test_frozen_08_source_url_fixture_reports_unsupported_producer(self):
         frozen = Path(__file__).resolve().parents[2] / "conformance/legacy-url-release"
         result = subprocess.run(
             [fixture.sys.executable, str(fixture.SCRIPT), "audit-release", "--project-root", str(frozen)],
             text=True, capture_output=True,
         )
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(json.loads(result.stdout)["generated_by"]["version"], "0.8.0")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("不支持的发布生成者：Code2KB Spec", result.stderr)
+        self.assertIn("生成时对应的工具版本", result.stderr)
 
-    def test_audit_source_url_rule_follows_generator_version(self):
-        # Start from a genuine frozen 0.8 release. A new 1.0 publish must not
-        # be relabeled as 0.8 merely to test the historical audit rule.
-        frozen = Path(__file__).resolve().parents[2] / "conformance/legacy-url-release"
-        candidate = self.root / "legacy-url-audit-copy"
-        shutil.copytree(frozen, candidate)
-        release = candidate / "发布"
-        legacy_audit = subprocess.run(
-            [fixture.sys.executable, str(fixture.SCRIPT), "audit-release", "--project-root", str(candidate)],
-            text=True, capture_output=True)
-        self.assertEqual(legacy_audit.returncode, 0, legacy_audit.stderr)
-
-        registry_path = release / "版本清单/v08-source-url.json"
+    def test_current_release_audit_rejects_source_url_even_with_matching_digests(self):
+        self.assertEqual(self.publish("url-v1").returncode, 0)
+        release = self.project / "发布"
+        registry_path = release / "版本清单/url-v1.json"
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
         pointer_path = release / "当前版本.json"
         pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
-        registry["generated_by"]["version"] = "1.0.0"
-        pointer["generated_by"]["version"] = "1.0.0"
+        local = "订单/订单查询/模块概览.md"
+        target = self.project / registry["views"]["business"]["path"] / local
+        write(target, target.read_text(encoding="utf-8") + "\n[Source](https://github.com/example/repo/blob/abc1234/README.md#L3)\n")
+        registry["views"]["business"]["files"][local] = core.digest(target.read_bytes())
         write(registry_path, json.dumps(registry, ensure_ascii=False, indent=2) + "\n")
         pointer["registry_sha256"] = core.digest(registry_path.read_bytes())
         write(pointer_path, json.dumps(pointer, ensure_ascii=False, indent=2) + "\n")
-        current_audit = subprocess.run(
-            [fixture.sys.executable, str(fixture.SCRIPT), "audit-release", "--project-root", str(candidate)],
-            text=True, capture_output=True)
+        current_audit = self.run_cli("audit-release")
         self.assertNotEqual(current_audit.returncode, 0)
         self.assertIn("源码仓库链接", current_audit.stderr)
+
+    def test_audit_rejects_unknown_producer_explicitly(self):
+        self.assertEqual(self.publish("other-v1").returncode, 0)
+        registry_path = self.project / "发布/版本清单/other-v1.json"
+        registry = json.loads(registry_path.read_text(encoding="utf-8"))
+        registry["generated_by"]["name"] = "Other Toolkit"
+        write(registry_path, json.dumps(registry, ensure_ascii=False))
+        result = self.run_cli("audit-release", "--release-id", "other-v1")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("不支持的发布生成者：Other Toolkit", result.stderr)
+
+    def test_publish_refuses_existing_old_brand_snapshot_without_changes(self):
+        frozen = Path(__file__).resolve().parents[2] / "conformance/legacy-release/发布"
+        release = self.project / "发布"
+        shutil.copytree(frozen, release)
+        self.commit_release("保留旧品牌发布快照")
+        before = {p.relative_to(release): p.read_bytes() for p in release.rglob("*") if p.is_file()}
+        result = self.publish("new-brand-v1")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("不支持的发布生成者：Code2KB Spec", result.stderr)
+        after = {p.relative_to(release): p.read_bytes() for p in release.rglob("*") if p.is_file()}
+        self.assertEqual(before, after)
 
     def test_prepare_refuses_process_vocabulary_in_topics(self):
         result = self.run_cli("prepare", "--module-id", "example.order.query", "--business-topics", "用户操作", "--business-unknowns", "写入方法带事务注解且经同类自身代理调用", "--business-keywords", "操作", "--refresh")

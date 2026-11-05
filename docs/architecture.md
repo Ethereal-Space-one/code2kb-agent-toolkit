@@ -1,6 +1,6 @@
 # 架构说明
 
-Code2KB Spec 分成三个层次：规范、参考实现和 Agent 工具。
+Code2KB Agent Toolkit 分成三个层次：规范、参考实现和 Agent 工具。
 
 ```text
 固定源码提交 ──证据锚点──▶ 知识项目

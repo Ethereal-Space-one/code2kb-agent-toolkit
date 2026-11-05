@@ -1,6 +1,6 @@
 # 贡献指南
 
-感谢你改进 Code2KB Spec。
+感谢你改进 Code2KB Agent Toolkit。
 
 ## 开始之前
 

@@ -1137,8 +1137,8 @@ class Governance:
     def generator_identity(self):
         version = self.core.IMPLEMENTATION_VERSION
         if not version:
-            raise ValueError("Code2KB Spec VERSION 不能为空")
-        return {"name": "Code2KB Spec", "version": version}
+            raise ValueError(f"{self.core.identity.PRODUCT_NAME} VERSION 不能为空")
+        return {"name": self.core.identity.PRODUCT_NAME, "version": version}
 
     def record(self, release_id, business_stage, engineering_stage, business_out, engineering_out, document_commit):
         summary = Counter(item["mode"] for item in self.module_reviews.values())
@@ -1180,8 +1180,13 @@ class Governance:
         if set(value) != registry_fields:
             raise ValueError("版本清单字段不完整或含未知字段")
         generated_by = value.get("generated_by")
-        if not isinstance(value, dict) or value.get("release_id") != release_id or not self.core.protocol.supports(value.get("standard_version"), "registry_2") or not isinstance(generated_by, dict) or set(generated_by) != {"name", "version"} or generated_by.get("name") != "Code2KB Spec" or not isinstance(generated_by.get("version"), str) or not generated_by["version"] or not isinstance(value.get("created_at"), str) or not isinstance(value.get("views"), dict) or set(value["views"]) != {"business", "engineering"} or not self.core.HEX_COMMIT.fullmatch(value.get("document_commit", "")):
+        if not isinstance(value, dict) or value.get("release_id") != release_id or not self.core.protocol.supports(value.get("standard_version"), "registry_2") or not isinstance(generated_by, dict) or set(generated_by) != {"name", "version"} or not isinstance(generated_by.get("name"), str) or not generated_by["name"] or not isinstance(generated_by.get("version"), str) or not generated_by["version"] or not isinstance(value.get("created_at"), str) or not isinstance(value.get("views"), dict) or set(value["views"]) != {"business", "engineering"} or not self.core.HEX_COMMIT.fullmatch(value.get("document_commit", "")):
             raise ValueError("版本清单结构或身份无效")
+        if generated_by["name"] != self.core.identity.PRODUCT_NAME:
+            raise ValueError(
+                f"不支持的发布生成者：{generated_by['name']}；本工具仅支持 {self.core.identity.PRODUCT_NAME}。"
+                "旧版发布物请使用生成时对应的工具版本审计；不要改写冻结清单中的生成者身份。"
+            )
         schema = value.get("registry_schema_version")
         if schema != "2.0":
             raise ValueError("版本清单 registry_schema_version 无效")
