@@ -1,22 +1,32 @@
+![Code2KB Agent Toolkit: a source-code window, evidence notes and an open knowledge book with a sprout](assets/readme/header.svg)
+
 # Code2KB Agent Toolkit
 
 [简体中文](README.md) · **English**
 
 **Turn business rules in code into knowledge your bot can retrieve.**
 
-Give your existing coding agent the source repositories, a defined scope and this toolkit. The agent traces code and writes features, workflows, rules and Q&A; `code2kb` checks evidence records, review state and release files so the knowledge can be maintained.
+Give your existing coding agent the source repositories, a defined scope and this toolkit.
+
+The agent traces code and writes features, workflows, rules and Q&A; `code2kb` checks evidence records, review state and release files so the knowledge can be maintained.
 
 [Who it is for](#who-it-is-for) · [Outputs](#outputs) · [Quick start](#quick-start) · [FAQ](#faq) · [Documentation](#documentation)
 
 ![Code2KB: source becomes reviewed knowledge through AI evidence gathering and writing, then feeds external FTS or vector retrieval and bot Q&A](assets/readme/overview.en.svg)
 
+<br>
+
 ## Who it is for
 
 - **Business-system maintainers** who repeatedly inspect code to explain how a feature works.
+
 - **Knowledge-base and bot builders** who need rules, workflows and limitations from an existing system.
+
 - **Teams handing over or maintaining projects** who need explanations tied to fixed source revisions, with evidence and open questions.
 
 Start with a clearly scoped module. Have the agent describe the scope and gaps before extracting knowledge; the first task does not need to cover the whole system.
+
+<br>
 
 ## Outputs
 
@@ -33,7 +43,11 @@ Example text based on the bundled [order fixture](conformance/english/knowledge.
 >
 > A: In this example, signed-in users can only view orders in their assigned regions. Actual region assignments and production behavior have not been verified, so access for any particular account cannot be assumed.
 
-A Q&A system uses **business knowledge → FTS/vector retrieval → model-composed answers**. You provide the index service, answer model and bot deployment. The evaluated retrieval extension has its own audit path; consumers who split base business files themselves check chunk boundaries, audience isolation and version switching.
+A Q&A system uses **business knowledge → FTS/vector retrieval → model-composed answers**. You provide the index service, answer model and bot deployment.
+
+The evaluated retrieval extension has its own audit path; consumers who split base business files themselves check chunk boundaries, audience isolation and version switching.
+
+<br>
 
 ## Quick start
 
@@ -54,6 +68,8 @@ git -C /path/to/source-repo rev-parse HEAD
 
 Keep the knowledge project separate from source repositories. Edit `知识库配置.json`: remove unused example repositories and set each absolute `path` and pinned `commit`. For English knowledge, set `content_language` to `en`; the default is `zh-CN`. See the [English guide](docs/usage.en.md).
 
+<br>
+
 ### 2. Give the task to your agent
 
 Replace the paths and scope, then send this task to your coding agent:
@@ -69,6 +85,8 @@ Complete checks and review candidates, follow the selected review path, and veri
 
 The agent loads instructions and templates by stage. Its model and execution environment come from your coding assistant; the CLI checks files and builds releases.
 
+<br>
+
 ### 3. Check, review and publish
 
 ```bash
@@ -78,6 +96,7 @@ code2kb check --project-root /path/to/knowledge-project
 Have the agent perform the actual review, then prepare candidates through `impact → confirm-claims → prepare`. Choose a review path:
 
 - **Human review:** after the actual reviewer approves the content and boundaries, record the decision with `approve`.
+
 - **Preauthorized policy review:** with a valid policy and matching review record, use `policy-review`; manual gates leave the package in draft.
 
 After approval, committing the knowledge-project inputs and obtaining authorization for this release:
@@ -100,29 +119,42 @@ The script creates temporary source and knowledge projects, runs a check and pri
 
 </details>
 
+<br>
+
 ## FAQ
 
 **How does this differ from asking an agent to summarize code?**
 
 It provides resumable steps, pinned evidence, conditions and unknowns, plus review and release tools. Try one module to decide whether the extra structure is useful. The tools do not prove the agent's writing is correct.
 
+<br>
+
 **Do I need to read the entire specification?**
 
 Start with the usage guide and give the Skill entry to your agent. Templates and the specification supply format details as needed. Read the full specification when maintaining the tools or extending the format.
+
+<br>
 
 **What does English support cover?**
 
 Human guides and AI workflows are separate; knowledge prose can be Chinese or English. Fixed filenames, internal headers and IDs stay literal, and some diagnostics and advanced references remain Chinese. Language declarations check consistency; the writing language still needs review.
 
+<br>
+
 **How do I connect a bot?**
 
 Business bots consume released business files or evaluated business retrieval units. Internal specifications, process files and toolkit instructions stay out of the corpus. Consumers provide indexing and bot integration; see the [retrieval contract](docs/retrieval-contract.md).
 
+<br>
+
 ## Optional capabilities
 
 - **Full-stack evidence:** [inventory actual system roles](skills/extract-app-knowledge/references/全栈范围盘点.md), then investigate cross-language calls, tasks, native components and configuration overrides. [Public cases](conformance/full-stack/README.md) check preservation of conditions and unknowns.
+
 - **Resumable work:** [task ledgers and recovery](docs/0.6.0-runner.md), with Claude Code/Codex task instructions.
+
 - **Source changes:** [compare pinned revisions](docs/1.0.0-public-contract.md) to produce a read-only knowledge-review plan.
+
 - **Entry discovery:** [adapters](docs/adapter-contract.md) provide candidates for review, with file-level fallback when no dedicated analyzer exists.
 
 <details>
@@ -146,13 +178,45 @@ Explicit scope can select owned code under normally filtered ancestor directorie
 
 Code and IDs in these diagrams illustrate the structure. The detail diagrams use Chinese labels with English subtitles:
 
+<br>
+
+**01 · Source inventory**
+
 ![Source inventory and adapter candidates](assets/readme/source-adapters.svg)
+
+*Source inventory and adapter candidates.*
+<br>
+
+**02 · Evidence and facts**
+
 ![Pinned source evidence and facts](assets/readme/evidence.svg)
+
+*Pinned source evidence and facts.*
+<br>
+
+**03 · Two knowledge views**
+
 ![Business and engineering views](assets/readme/two-views.svg)
+
+*Business and engineering views.*
+<br>
+
+**04 · Optional retrieval**
+
 ![Optional retrieval units, evaluation and audit](assets/readme/retrieval.svg)
+
+*Optional retrieval units, evaluation and audit.*
+<br>
+
+**05 · Source-upgrade review**
+
 ![Read-only source-upgrade review](assets/readme/upgrade-review.svg)
 
+*Read-only source-upgrade review.*
+
 </details>
+
+<br>
 
 ## Documentation
 
@@ -166,10 +230,13 @@ Code and IDs in these diagrams illustrate the structure. The detail diagrams use
 
 Current project version: `2.0.0`. See the [release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.0.0); historical tags and releases retain their original snapshots.
 
-Formerly Code2KB Spec, **Code2KB Agent Toolkit** now uses `code2kb-agent-toolkit` for its repository and Python distribution; the command remains `code2kb`. No old-name compatibility or automatic migration is provided. Audit older releases with the tool version that generated them. Existing knowledge sources can be checked, maintained and republished; this rename does not update deployed bots or indexes. See the [rename notes](docs/agent-toolkit-rebrand-plan.md) and [versioning](docs/versioning.md).
+Formerly Code2KB Spec, **Code2KB Agent Toolkit** now uses `code2kb-agent-toolkit` for its repository and Python distribution; the command remains `code2kb`.
+
+No old-name compatibility or automatic migration is provided. Audit older releases with the tool version that generated them. Existing knowledge sources can be checked, maintained and republished; this rename does not update deployed bots or indexes. See the [rename notes](docs/agent-toolkit-rebrand-plan.md) and [versioning](docs/versioning.md).
 
 If a project contains an old-brand release, retain that project and reuse its configuration, knowledge sources and required review materials in a new knowledge Git project. Check them before publishing. The new tool blocks overwriting an old-brand snapshot directly.
 
 Source alone cannot establish production behavior or business policy. Preserve unknowns where evidence is missing.
 
 [Report an issue](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/issues) · [Contribute](CONTRIBUTING.md) · [Apache License 2.0](LICENSE)
+

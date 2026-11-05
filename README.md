@@ -1,22 +1,32 @@
+![Code2KB Agent Toolkit：源码窗口、证据便笺与萌芽知识书页组成的标题插画](assets/readme/header.svg)
+
 # Code2KB Agent Toolkit
 
 **简体中文** · [English](README.en.md)
 
 **让 AI 把代码里的业务规则，整理成机器人可以检索的知识。**
 
-把源码仓库、提取范围和这套工具交给你现有的 AI 编码助手。AI 沿代码整理功能、流程、限制和问答；`code2kb` 检查证据记录、审核状态和发布文件，帮助你得到可维护的业务与研发知识。
+把源码仓库、提取范围和这套工具交给你现有的 AI 编码助手。
+
+AI 沿代码整理功能、流程、限制和问答；`code2kb` 检查证据记录、审核状态和发布文件，帮助你得到可维护的业务与研发知识。
 
 [适合谁](#适合谁使用) · [知识产物](#知识产物) · [快速开始](#快速开始) · [常见问题](#常见问题) · [文档](#文档)
 
 ![Code2KB：源码经 AI 取证、写作与审核，生成知识文件，供外部 FTS 或向量索引及机器人问答使用](assets/readme/overview.svg)
 
+<br>
+
 ## 适合谁使用
 
 - **业务系统维护者**：把反复翻代码解释的规则，整理为可查询的知识。
+
 - **知识库与机器人开发者**：从已有系统提取功能、流程和限制，作为问答语料。
+
 - **项目交接与文档维护者**：把说明与固定源码版本关联，保留实现依据和待确认项。
 
 首次使用可以选一个明确的小模块。先让 AI 说明约定范围和缺口，再提取其中的知识，不必一开始就处理整个系统。
+
+<br>
 
 ## 知识产物
 
@@ -33,7 +43,11 @@
 >
 > 答：该示例中，登录用户只能查看分配区域内的订单。实际区域分配和线上表现尚未验证，不能据此认定某个账号一定有权查看。
 
-接入问答系统时，链路为 **业务知识 → FTS／向量召回 → 问答模型组织答案**。使用方提供索引服务、问答模型和机器人部署。经过评测的检索版有单独的审计路径；直接拆分业务版建立自有索引时，由使用方检查分块、受众隔离和版本切换。
+接入问答系统时，链路为 **业务知识 → FTS／向量召回 → 问答模型组织答案**。使用方提供索引服务、问答模型和机器人部署。
+
+经过评测的检索版有单独的审计路径；直接拆分业务版建立自有索引时，由使用方检查分块、受众隔离和版本切换。
+
+<br>
 
 ## 快速开始
 
@@ -54,6 +68,8 @@ git -C /path/to/source-repo rev-parse HEAD
 
 知识项目和源码仓库分开保存。编辑 `知识库配置.json`：删去不用的示例仓库，填入每个源码仓库的绝对路径 `path` 与固定提交 `commit`。知识正文默认中文，英文输出设置 `content_language: en`，见[英文指南](docs/usage.en.md)。
 
+<br>
+
 ### 2. 把任务交给 AI
 
 替换下面的路径和范围，发送给你的 AI 编码助手：
@@ -69,6 +85,8 @@ git -C /path/to/source-repo rev-parse HEAD
 
 AI 按阶段读取所需指引和模板。模型与执行环境来自你使用的编码助手，CLI 负责检查和生成发布文件。
 
+<br>
+
 ### 3. 检查、审核并发布
 
 ```bash
@@ -78,6 +96,7 @@ code2kb check --project-root /path/to/knowledge-project
 让 AI 完成实际复核，再按 `impact → confirm-claims → prepare` 准备候选。随后选择：
 
 - **人工审核**：实际审核人批准内容与边界后，用 `approve` 记录决定。
+
 - **预授权策略审核**：已有有效策略和本次审核记录时，用 `policy-review` 核对；命中人工门禁则保持草稿。
 
 审核通过、发布输入提交到知识项目 Git，并取得本次发布授权后，执行：
@@ -100,29 +119,42 @@ python3 -B examples/create_demo.py
 
 </details>
 
+<br>
+
 ## 常见问题
 
 **它与直接让 AI 总结代码有什么不同？**
 
 这里提供可接续的工作步骤、固定源码依据、条件与未知记录，以及审核发布工具。是否值得这些额外步骤，可以先用一个模块判断；工具本身不证明 AI 写得正确。
 
+<br>
+
 **需要阅读全部规范吗？**
 
 使用者先看使用指南，把 Skill 入口交给 AI。格式细节由模板和规范提供，AI 按任务读取；维护工具或扩展格式时再深入规范。
+
+<br>
 
 **中英文分别支持什么？**
 
 人读指南与 AI 指引分开；知识正文可选中文或英文。固定文件名、内部表头和 ID 保留，部分诊断仍为中文。语言声明检查一致性，正文是否符合目标语言仍需复核。
 
+<br>
+
 **产物怎样交给机器人？**
 
 业务机器人读取已发布的业务知识或已评测的业务检索单元。内部规格、过程文件和本工具的操作指令不进入语料。索引和机器人接入由使用方完成，见[检索契约](docs/retrieval-contract.md)。
 
+<br>
+
 ## 按需扩展
 
 - **全栈取证**：[按实际系统职责盘点](skills/extract-app-knowledge/references/全栈范围盘点.md)，调查跨语言调用、消息任务、原生组件与配置覆盖；[公开案例](conformance/full-stack/README.md)检查条件与未知的保留。
+
 - **长任务接续**：[任务账本和恢复](docs/0.6.0-runner.md)，提供 Claude Code／Codex 任务指令适配。
+
 - **源码变更复核**：[比较固定版本](docs/1.0.0-public-contract.md)，输出待维护者复核的知识范围。
+
 - **入口扫描**：[适配器](docs/adapter-contract.md)提供待复核候选；无专用分析器时采用文件级盘点。
 
 <details>
@@ -146,13 +178,45 @@ code2kb analyze-candidates --project-root /path/to/knowledge-project \
 
 以下图中的代码和编号用于说明结构：
 
+<br>
+
+**01 · 源码盘点**
+
 ![源码盘点与适配器候选](assets/readme/source-adapters.svg)
+
+*源码盘点与适配器候选。*
+<br>
+
+**02 · 依据与事实**
+
 ![固定源码依据与事实](assets/readme/evidence.svg)
+
+*固定源码依据与事实。*
+<br>
+
+**03 · 两种知识视图**
+
 ![业务版与研发版](assets/readme/two-views.svg)
+
+*业务版与研发版。*
+<br>
+
+**04 · 可选检索**
+
 ![可选检索单元、评测与审计](assets/readme/retrieval.svg)
+
+*可选检索单元、评测与审计。*
+<br>
+
+**05 · 源码升级复核**
+
 ![源码升级后的只读复核计划](assets/readme/upgrade-review.svg)
 
+*源码升级后的只读复核计划。*
+
 </details>
+
+<br>
 
 ## 文档
 
@@ -166,10 +230,13 @@ code2kb analyze-candidates --project-root /path/to/knowledge-project \
 
 当前工程版本：`2.0.0`。查看 [Release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.0.0)；历史标签与 Release 保留原始快照。
 
-本项目由 Code2KB Spec 更名为 **Code2KB Agent Toolkit**，仓库和 Python 包标识统一为 `code2kb-agent-toolkit`，命令仍为 `code2kb`。不提供旧名称兼容或自动迁移：旧版发布物请使用其生成时对应的工具审计；已有知识源经检查后可继续维护并重新发布。更名不会自动更新机器人或索引。详见[更名说明](docs/agent-toolkit-rebrand-plan.md)与[版本管理](docs/versioning.md)。
+本项目由 Code2KB Spec 更名为 **Code2KB Agent Toolkit**，仓库和 Python 包标识统一为 `code2kb-agent-toolkit`，命令仍为 `code2kb`。
+
+不提供旧名称兼容或自动迁移：旧版发布物请使用其生成时对应的工具审计；已有知识源经检查后可继续维护并重新发布。更名不会自动更新机器人或索引。详见[更名说明](docs/agent-toolkit-rebrand-plan.md)与[版本管理](docs/versioning.md)。
 
 已有旧品牌发布目录时，保留原项目；在新的知识 Git 项目中复用配置、知识源及所需审核材料，经检查后发布。新工具会阻止直接覆盖旧品牌快照。
 
 源码不能单独证明线上表现或业务政策；没有证据的部分保留未知。
 
 [反馈问题](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/issues) · [参与贡献](CONTRIBUTING.md) · [Apache License 2.0](LICENSE)
+
