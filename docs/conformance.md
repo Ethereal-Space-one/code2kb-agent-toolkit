@@ -16,7 +16,7 @@
 
 ## 第三方兼容声明
 
-1. 固定 Code2KB Spec 版本与一致性夹具的 Git 提交；
+1. 固定 Code2KB Agent Toolkit 版本与一致性夹具的 Git 提交；
 2. 运行全部夹具，保存机器可读报告并计算 SHA-256；
 3. 从 [`compatibility-statement.template.json`](../conformance/compatibility-statement.template.json) 创建声明；
 4. 逐项列出角色、已覆盖编号、未覆盖编号和限制；

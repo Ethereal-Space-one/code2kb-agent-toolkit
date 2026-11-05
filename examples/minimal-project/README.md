@@ -14,6 +14,6 @@ python3 -B examples/create_demo.py
 2. 将 `repositories` 中的路径和提交替换为本机真实值；
 3. 复制 [`../../templates/功能大纲.md`](../../templates/功能大纲.md) 到项目的 `知识源/功能大纲.md`；
 4. 按 [`../../skills/extract-app-knowledge/SKILL.md`](../../skills/extract-app-knowledge/SKILL.md) 完成全范围盘点；
-5. 从 Code2KB Spec 根目录运行 `check`。
+5. 从 Code2KB Agent Toolkit 根目录运行 `check`。
 
 仓库测试和演示脚本都会动态创建源码提交，避免静态示例使用失效的提交号。

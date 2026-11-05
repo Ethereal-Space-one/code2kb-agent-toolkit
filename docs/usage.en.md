@@ -1,8 +1,10 @@
-# Code2KB Spec usage guide
+# Code2KB Agent Toolkit usage guide
 
 [简体中文](usage.md) · **English**
 
 **For knowledge maintainers.** Give the [Skill entry](../skills/extract-app-knowledge/SKILL.md) to your AI coding agent; this guide explains your setup and decisions. Neither document belongs in a bot's knowledge corpus.
+
+> Applies to the unreleased `2.0.0` toolkit. The command remains `code2kb`. Audit old-brand releases using the version that generated them; see the [rename notes](agent-toolkit-rebrand-plan.md).
 
 ## What English support covers
 
@@ -15,8 +17,8 @@ Protocol filenames, fixed internal tables, enums and IDs remain literal, often C
 Requires Git, Python 3.9+ and your own AI coding agent with access to local repositories. Mutating commands need `fcntl` on platforms such as Linux/macOS.
 
 ```bash
-git clone https://github.com/Ethereal-Space-one/code2kb-spec.git
-cd code2kb-spec
+git clone https://github.com/Ethereal-Space-one/code2kb-agent-toolkit.git code2kb-agent-toolkit
+cd code2kb-agent-toolkit
 python3 -m pip install -e .
 git init /path/to/knowledge-project
 cp templates/知识库配置.example.json /path/to/knowledge-project/知识库配置.json
@@ -45,7 +47,7 @@ Absent `content_language` means `zh-CN`. Supported values are exactly `zh-CN` an
 Copy this task and replace the paths:
 
 ```text
-Read <code2kb-spec-root>/skills/extract-app-knowledge/SKILL.md and select its English AI workflow.
+Read <toolkit-root>/skills/extract-app-knowledge/SKILL.md and select its English AI workflow.
 Use English for interaction. Build knowledge in /path/to/knowledge-project with content_language=en.
 Read the configured pinned source revisions. First plan the scope, modules, entry inventory and gaps, then gather evidence and write each module.
 Preserve conditions, failure branches and unknowns. Fixed protocol filenames, table labels and IDs must not be translated.

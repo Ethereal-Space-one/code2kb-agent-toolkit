@@ -156,7 +156,7 @@ class ProtocolMigrationTests(unittest.TestCase):
 
 
 class FrozenLegacyReleaseTests(unittest.TestCase):
-    def test_v060_generated_release_remains_auditable(self) -> None:
+    def test_old_brand_release_reports_unsupported_without_rewriting(self) -> None:
         frozen = Path(__file__).resolve().parents[2] / "conformance/legacy-release"
         registry = json.loads((frozen / "发布/版本清单/legacy-v1.json").read_text(encoding="utf-8"))
         self.assertEqual(registry["generated_by"]["version"], "0.6.0")
@@ -164,13 +164,14 @@ class FrozenLegacyReleaseTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             project = Path(temporary) / "frozen"
             shutil.copytree(frozen, project)
-            audited = subprocess.run([sys.executable, str(fixture.SCRIPT), "audit-release", "--project-root", str(project)], text=True, capture_output=True)
-            self.assertEqual(audited.returncode, 0, audited.stderr)
-            target = project / "发布/业务版/订单/订单查询/模块概览.md"
-            target.write_text(target.read_text(encoding="utf-8") + "\n额外修改\n", encoding="utf-8")
-            broken = subprocess.run([sys.executable, str(fixture.SCRIPT), "audit-release", "--project-root", str(project)], text=True, capture_output=True)
-            self.assertNotEqual(broken.returncode, 0)
-            self.assertIn("发布目录内容已被修改", broken.stderr)
+            before = {p.relative_to(project): p.read_bytes() for p in project.rglob("*") if p.is_file()}
+            for options in ((), ("--release-id", "legacy-v1")):
+                audited = subprocess.run([sys.executable, str(fixture.SCRIPT), "audit-release", "--project-root", str(project), *options], text=True, capture_output=True)
+                self.assertNotEqual(audited.returncode, 0)
+                self.assertIn("不支持的发布生成者：Code2KB Spec", audited.stderr)
+                self.assertIn("生成时对应的工具版本", audited.stderr)
+            after = {p.relative_to(project): p.read_bytes() for p in project.rglob("*") if p.is_file()}
+            self.assertEqual(before, after)
 
     def test_unknown_registry_protocol_is_rejected(self) -> None:
         frozen = Path(__file__).resolve().parents[2] / "conformance/legacy-release"

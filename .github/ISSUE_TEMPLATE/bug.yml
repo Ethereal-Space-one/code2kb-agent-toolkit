@@ -13,7 +13,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: Code2KB Spec 版本
+      label: Code2KB Agent Toolkit 版本
       placeholder: 0.2.0
     validations:
       required: true
