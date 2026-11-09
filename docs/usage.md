@@ -190,3 +190,13 @@ code2kb retrieval-query --project-root /项目 --query "订单查询失败时会
 - 缺少运行证据时，研发正文保持 `source_only`。
 - 未闭环业务意图只能留在内部规格和待确认事项。
 - 业务用户只检索业务版；研发用户才检索研发版。
+
+## 多模块交付：提前预检，批末统一收口
+
+```bash
+code2kb preflight --project-root /项目 --module-id example.module
+```
+
+在语义审核前检查候选集合、来源基线、接口/方法对应和本模块链接，并预览 FAQ 检索标题；不写入项目。跨模块、问答结果、语义与审核门禁等未执行项会明确列出。来源或结构缺失仍报错，其他未完成模块的正文不阻断本模块预检。正式 prepare 不接受该报告作放行依据。
+
+多模块任务可在冻结输入上运行一次全局 impact，再逐模块实质复核、confirm-claims、prepare；最后全局 check 成功且明确 `pending_claim_impacts: 0` 时，无需再逐模块获取空队列。任何输入变化使旧结果失效，批准与发布要求不变。详见[批次与接续手顺](../skills/extract-app-knowledge/references/长任务续跑.md)。

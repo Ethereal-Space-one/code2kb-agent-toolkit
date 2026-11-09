@@ -148,3 +148,13 @@ These meanings help you read the output; **do not rename the tokens**:
 | `通过` | Passed; the record must say what was actually checked |
 
 The shared [specification](../SPEC.md) remains authoritative. A language declaration and lexical rules cannot certify translation quality, source entailment, business authorization or actual production behavior.
+
+## Multi-module handoff
+
+```bash
+code2kb preflight --project-root /path/to/knowledge-project --module-id example.order.lookup
+```
+
+This read-only command checks the target candidate's structure, source baselines, catalogs and local links, and previews FAQ retrieval headings. It does not certify cross-module consistency, question results, semantics, approval or retrieval quality. Missing structural inputs fail; other unfinished module bodies do not block it. Formal prepare rechecks current inputs and never accepts this report as authorization.
+
+For a stable batch, obtain one global impact queue, actually review its findings, and confirm/prepare each module. After all writes, a successful global check with explicit `pending_claim_impacts: 0` replaces repeated final empty module impacts. Changed inputs invalidate old results. Follow the [English batch workflow](../skills/extract-app-knowledge/contracts/english-workflow.md#optional-batch-review); review and publication authorization remain required.
