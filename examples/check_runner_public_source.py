@@ -8,6 +8,7 @@ checks process-to-process recovery and traceability, not model answer quality.
 
 from __future__ import annotations
 
+import ast
 from datetime import date
 import json
 from pathlib import Path
@@ -36,11 +37,22 @@ def run(project: Path, action: str, *args: str) -> dict:
     return json.loads(result.stdout)
 
 
+def command_anchor(source: str, command: str = "check") -> int:
+    """Locate a literal command in ACTIONS without relying on adjacent names."""
+    for node in ast.parse(source).body:
+        if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == "ACTIONS" for target in node.targets):
+            if isinstance(node.value, (ast.Tuple, ast.List)):
+                for item in node.value.elts:
+                    if isinstance(item, ast.Constant) and item.value == command:
+                        return item.lineno
+    raise ValueError(f"Committed CLI does not declare {command!r} in ACTIONS")
+
+
 def prepare_project(root: Path) -> Path:
     project = build(root)
     commit = git(ROOT, "rev-parse", "HEAD")
-    source = git(ROOT, "show", f"{commit}:validation/knowledge.py").splitlines()
-    line = next(index for index, value in enumerate(source, 1) if '"check", "publish"' in value)
+    source = git(ROOT, "show", f"{commit}:validation/knowledge.py")
+    line = command_anchor(source)
     anchor = f"source:validation/knowledge.py:{line}"
     config_path = project / "知识库配置.json"
     config = json.loads(config_path.read_text(encoding="utf-8"))

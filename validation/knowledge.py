@@ -50,7 +50,7 @@ STANDARD_VERSION = protocol.DEFAULT_VERSION
 LEGACY_STANDARD_VERSION = protocol.LEGACY_VERSION
 SUPPORTED_STANDARD_VERSIONS = protocol.SUPPORTED_VERSIONS
 ACTIONS = (
-    "check", "publish", "impact", "confirm-claims", "prepare", "approve", "policy-review", "audit-release",
+    "check", "preflight", "publish", "impact", "confirm-claims", "prepare", "approve", "policy-review", "audit-release",
     "retrieval-build", "retrieval-evaluate", "retrieval-audit", "retrieval-coverage", "retrieval-compare", "retrieval-query",
     "relation-audit", "analyze-candidates", "evidence-snapshot", "render-facts", "preview-upgrade",
     "relation-report", "recover", "run-create", "run-status", "run-next", "run-begin", "run-complete",
@@ -353,13 +353,26 @@ def ensure_no_symlinks(source: Path) -> None:
             raise KnowledgeError(f"知识源不允许符号链接：{path}")
 
 
-def read_documents(source: Path) -> tuple[list[Document], Outline]:
+def read_documents(source: Path, *, module_id: str | None = None) -> tuple[list[Document], Outline]:
     ensure_no_symlinks(source)
     docs: list[Document] = []
     outline: Outline | None = None
     if not (source / "功能大纲.md").is_file():
         raise KnowledgeError("缺少知识源/功能大纲.md")
-    for path in sorted(source.rglob("*.md")):
+    paths = []
+    if module_id is not None:
+        meta, body, _ = parse_frontmatter(source / "功能大纲.md")
+        inventory = parse_outline(body, meta)
+        if module_id not in inventory.modules:
+            raise KnowledgeError(f"模块未在功能大纲登记：{module_id}")
+        domain, module, _ = inventory.modules[module_id]
+        relative_root = Path(domain, module)
+        if len(relative_root.parts) != 2 or not safe_repo_path(relative_root.as_posix()):
+            raise KnowledgeError("模块目录必须是安全的两级相对路径")
+        paths = [source / "功能大纲.md", *sorted((source / relative_root).rglob("*.md"))]
+    else:
+        paths = sorted(source.rglob("*.md"))
+    for path in paths:
         relative = path.relative_to(source)
         parts = relative.parts
         if len(parts) == 1:
@@ -896,7 +909,7 @@ def intent_counts(docs: list[Document], config: dict) -> dict[str, int]:
     return counts
 
 
-def validate_project(docs: list[Document], outline: Outline, config: dict, adapter_entries: set[str] | None, *, for_publish: bool = False, entry_coverage: bool = True) -> list[Document]:
+def validate_project(docs: list[Document], outline: Outline, config: dict, adapter_entries: set[str] | None, *, for_publish: bool = False, entry_coverage: bool = True, local_module: str | None = None) -> list[Document]:
     language = content_language.declared(config)
     for doc in docs:
         if doc.doc_type in BUSINESS | ENGINEERING and doc.meta.get("applicability") == "current" and content_language.declared(doc.meta) != language:
@@ -919,6 +932,8 @@ def validate_project(docs: list[Document], outline: Outline, config: dict, adapt
         raise KnowledgeError("完整功能大纲尚未通过自检；先完成入口盘点并标记 inventory_status: complete，再写模块文件")
     cache: dict[tuple[str, str], list[str]] = {}
     for entry in outline.entries:
+        if local_module and entry[3] != local_module:
+            continue
         verify_anchor(entry[4], config, cache)
     if outline.meta["inventory_status"] == "complete" and adapter_entries is not None:
         kind = config["inventory_adapter"].get("entry_type", "页面")
@@ -953,7 +968,8 @@ def validate_project(docs: list[Document], outline: Outline, config: dict, adapt
             validate_entry_coverage(spec, outline)
         fact_render.normalized_facts(spec, sys.modules[__name__])
         api_rows, method_rows, core_ids = validate_spec_catalog(spec, outline, config, cache, sources)
-        validate_semantic_quality(spec, items, facts_by_module[module_id], config, cache, sources)
+        if local_module is None:
+            validate_semantic_quality(spec, items, facts_by_module[module_id], config, cache, sources)
         validate_intent_structure(spec, items, config)
         api_ids, method_ids = set(api_rows), set(method_rows)
         published = [doc for doc in items if doc.publishable]
@@ -973,6 +989,8 @@ def validate_project(docs: list[Document], outline: Outline, config: dict, adapt
                 raise KnowledgeError(f"{technical_doc.relative}: source_revisions 须与本模块结构化规格一致")
             for match in FACT_REF.finditer(technical_doc.body):
                 target = match.group("module") or module_id
+                if local_module and target != local_module:
+                    continue  # Explicitly deferred to the full project check.
                 if match.group("fact") not in facts_by_module.get(target, set()):
                     raise KnowledgeError(f"{technical_doc.relative}: 事实编号未在 {target} 的规格中定义：{match.group(0)}")
         if ("api_catalog" in technical or "method_catalog" in technical) and "implementation" not in technical:
@@ -1015,6 +1033,10 @@ def validate_project(docs: list[Document], outline: Outline, config: dict, adapt
                     stack.pop()
                 else:
                     stack.append(part)
+            if local_module:
+                root = Path(doc.domain, doc.module)
+                if not Path(*stack).is_relative_to(root):
+                    continue  # Cross-module targets are outside preflight's scope.
             if Path(*stack) not in selected_paths:
                 raise KnowledgeError(f"{doc.relative}: 链接目标未发布：{target}")
     return selected
@@ -1246,7 +1268,7 @@ def _main() -> int:
             sub.add_argument("--new-commit", required=True)
             sub.add_argument("--exclude-path", action="append", default=[], metavar="PATH=REASON",
                              help="全项目模式下明确排除变化路径，须给出审核理由")
-        if action in {"confirm-claims", "prepare", "approve", "policy-review"}:
+        if action in {"preflight", "confirm-claims", "prepare", "approve", "policy-review"}:
             sub.add_argument("--module-id", required=True)
         if action == "impact":
             sub.add_argument("--module-id")
@@ -1260,6 +1282,8 @@ def _main() -> int:
             sub.add_argument("--pack", type=Path, help="评分时：先前生成的校准题")
             sub.add_argument("--key", type=Path, help="评分时：先前保存的答案键")
             sub.add_argument("--answers", type=Path, help="评分时：验证者返回的答案；提供后进入评分模式")
+        if action == "preflight":
+            sub.add_argument("--files", help="与 prepare 相同的模块内候选文件选择；仅预检结构，不写入")
         if action == "prepare":
             sub.add_argument("--business-topics")
             sub.add_argument("--business-unknowns")
@@ -1501,6 +1525,12 @@ def _main() -> int:
             print(json_text(result))
             return 0
         source, config = read_config(project)
+        if args.action == "preflight":
+            docs, outline = read_documents(source, module_id=args.module_id)
+            verify_repos(config)
+            governance = Governance(project, source, config, docs, outline, sys.modules[__name__])
+            print(json_text(governance.preflight(args.module_id, args.files)))
+            return 0
         docs, outline = read_documents(source)
         verify_repos(config)
         adapter_entries = registered_adapter_entries(config)

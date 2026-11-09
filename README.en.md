@@ -108,6 +108,8 @@ code2kb audit-release --project-root /path/to/knowledge-project
 
 Passing `check` does not approve content or prove natural-language claims. The [usage guide](docs/usage.en.md) covers setup, review choices and optional retrieval.
 
+For multi-module handoff, use read-only `preflight` for early structure checks and the [batch workflow](skills/extract-app-knowledge/contracts/english-workflow.md#optional-batch-review) to avoid repeated empty final queues. Review and release requirements remain unchanged. This is a 2.0 main-branch supplement; the original `v2.0.0` download does not include this command. Use a `main` commit containing the supplement.
+
 <details>
 <summary>Explore the file structure with the bundled demo</summary>
 

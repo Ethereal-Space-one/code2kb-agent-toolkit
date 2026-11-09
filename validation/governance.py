@@ -832,15 +832,10 @@ class Governance:
                 raise ValueError(f"发布清单须有业务语言的 {key}（不得含过程用语或内部编号）")
         return result
 
-    def prepare(self, module_id, business_topics, business_unknowns, business_keywords,
-                engineering_topics=None, engineering_unknowns=None, engineering_keywords=None,
-                files=None, refresh=False):
-        items = self.module_docs(module_id)
+    def candidate_structure(self, module_id, files=None, *, local=False):
+        """Read-only checks shared by preflight and formal candidate preparation."""
         spec = self.spec(module_id)
-        existing = [doc for doc in items if doc.doc_type == "release_manifest"]
-        if existing and not refresh:
-            raise ValueError("发布清单已存在；需要更新时显式使用 --refresh")
-        candidates = [doc for doc in items if doc.doc_type in self.core.BUSINESS | self.core.ENGINEERING and doc.meta["applicability"] == "current"]
+        candidates = [doc for doc in self.module_docs(module_id) if doc.doc_type in self.core.BUSINESS | self.core.ENGINEERING and doc.meta["applicability"] == "current"]
         if files:
             requested = {value.strip() for value in files.split(",")}
             candidates = [doc for doc in candidates if doc.relative.relative_to(spec.relative.parent).as_posix() in requested]
@@ -851,19 +846,8 @@ class Governance:
             raise ValueError(f"模块发布包缺少 {sorted(required - {doc.doc_type for doc in candidates})}；请核对 full/compact profile")
         chosen = {doc.relative for doc in candidates}
         prospective = [replace(doc, meta={**doc.meta, "review_status": "reviewed" if doc.relative in chosen else "draft"}) if doc.module_id == module_id and doc.doc_type in self.core.BUSINESS | self.core.ENGINEERING else doc for doc in self.docs]
-        self.core.validate_project(prospective, self.outline, self.config, self.core.registered_adapter_entries(self.config))
+        self.core.validate_project(prospective, self.outline, self.config, None if local else self.core.registered_adapter_entries(self.config), local_module=module_id if local else None)
         self.core.validate_entry_coverage(spec, self.outline, required=True)
-        for value in (business_topics, business_unknowns, business_keywords):
-            if not value or any(char in value for char in "\n\r|") or self.core.TECHNICAL.search(value) or self.core.BUSINESS_FORBIDDEN.search(value) or content_language.BUSINESS_EN.search(value) or self.core.contains_source_repository_url(value):
-                raise ValueError("业务主题、未知和关键词须为单行业务语言，且不得含过程用语或内部编号")
-        engineering_topics = engineering_topics or business_topics
-        engineering_unknowns = engineering_unknowns or business_unknowns
-        engineering_keywords = engineering_keywords or business_keywords
-        if any(any(char in value for char in "\n\r|") for value in (engineering_topics, engineering_unknowns, engineering_keywords)):
-            raise ValueError("研发主题、未知和关键词须为单行文字")
-        if self.impacts(module_id):
-            raise ValueError("结论影响尚未复核；先查看 impact 并完成语义核对后 confirm-claims")
-        self.core.validate_qa(spec)
         apis, methods, cores = self.core.validate_spec_catalog(spec, self.outline, self.config, {}, self.core.document_revisions(spec, self.config))
         technical = {doc.doc_type: doc for doc in candidates if doc.doc_type in self.core.ENGINEERING}
         if technical and "implementation" not in technical:
@@ -879,6 +863,47 @@ class Governance:
                 self.core.validate_catalog(doc, apis if doc.doc_type == "api_catalog" else methods, cores, self.config, {}, self.core.document_revisions(spec, self.config))
             if doc.doc_type == "api_catalog" and self.core.table_rows(doc.body, "## 调用匹配", MATCH_HEADER) != self.core.table_rows(spec.body, "## 调用匹配", MATCH_HEADER):
                 raise ValueError("接口与调用的匹配状态须与规格一致")
+        return candidates
+
+    def preflight(self, module_id, files=None):
+        candidates = self.candidate_structure(module_id, files, local=True)
+        return {
+            "module_id": module_id,
+            "scope": "module_structure_only",
+            "candidate_files": [doc.relative.as_posix() for doc in candidates],
+            "checks": ["document_structure", "source_baselines", "entry_dispositions",
+                       "catalogs_and_matches", "local_fact_references", "local_links"],
+            "not_checked": ["cross_module_consistency", "global_inventory", "impact_clear",
+                            "evidence_lifecycle", "relations", "qa_results", "semantic_quality", "review_and_authorization",
+                            "retrieval_metadata", "retrieval_recall", "publication"],
+            "navigation_preview": [{"file": doc.relative.as_posix(),
+                                    "titles": [item[0] for item in self.core.retrieval_build.index_sections(doc.body, doc.relative.name)]}
+                                   for doc in candidates if doc.doc_type == "faq"],
+            "document_content_sha256": {doc.relative.as_posix(): digest(doc.original) for doc in self.docs},
+            "next_steps": ["impact", "semantic_review", "confirm-claims", "prepare", "check"],
+            "warning": "仅本模块结构预检；未检查跨模块引用目标和全局门禁，不表示已审核或可发布；正式 prepare 仍完整重验",
+        }
+
+    def prepare(self, module_id, business_topics, business_unknowns, business_keywords,
+                engineering_topics=None, engineering_unknowns=None, engineering_keywords=None,
+                files=None, refresh=False):
+        items = self.module_docs(module_id)
+        spec = self.spec(module_id)
+        existing = [doc for doc in items if doc.doc_type == "release_manifest"]
+        if existing and not refresh:
+            raise ValueError("发布清单已存在；需要更新时显式使用 --refresh")
+        candidates = self.candidate_structure(module_id, files)
+        for value in (business_topics, business_unknowns, business_keywords):
+            if not value or any(char in value for char in "\n\r|") or self.core.TECHNICAL.search(value) or self.core.BUSINESS_FORBIDDEN.search(value) or content_language.BUSINESS_EN.search(value) or self.core.contains_source_repository_url(value):
+                raise ValueError("业务主题、未知和关键词须为单行业务语言，且不得含过程用语或内部编号")
+        engineering_topics = engineering_topics or business_topics
+        engineering_unknowns = engineering_unknowns or business_unknowns
+        engineering_keywords = engineering_keywords or business_keywords
+        if any(any(char in value for char in "\n\r|") for value in (engineering_topics, engineering_unknowns, engineering_keywords)):
+            raise ValueError("研发主题、未知和关键词须为单行文字")
+        if self.impacts(module_id):
+            raise ValueError("结论影响尚未复核；先查看 impact 并完成语义核对后 confirm-claims")
+        self.core.validate_qa(spec)
         intent_included = any(doc.doc_type == "intent" for doc in candidates)
         text = (f"---\nmodule_id: {module_id}\ndocument_type: release_manifest\nreview_status: draft\napplicability: current\n"
                 f"intent_included: {'true' if intent_included else 'false'}\n"

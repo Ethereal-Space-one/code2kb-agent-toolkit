@@ -108,6 +108,8 @@ code2kb audit-release --project-root /path/to/knowledge-project
 
 `check` 通过不等于批准，也不证明自然语言结论正确。[完整使用手顺](docs/usage.md)包含配置、审核与可选检索步骤。
 
+多模块交付可先用 `preflight` 只读检查单模块结构，再按[批次手顺](skills/extract-app-knowledge/references/长任务续跑.md)统一检查稳定终稿，减少重复获取空队列；审核和发布要求不变。这是 2.0 的主分支补充，原 `v2.0.0` 下载快照不含此命令，需更新到包含该补充的 `main` 提交。
+
 <details>
 <summary>先看看文件结构：运行内置示例</summary>
 
