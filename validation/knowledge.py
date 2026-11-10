@@ -23,6 +23,7 @@ try:
     from .business_urls import contains_source_repository_url
     from .adapters.ts_java import scan as scan_candidates
     from .adapters import ADAPTER_NAMES, get_adapter
+    from .pinned_source import PinnedReads
     from .evidence_snapshot import snapshot as source_snapshot
     from .governance import Governance, json_text, atomic_write, digest, scan_business_terms
     from . import retrieval_build, retrieval_evaluate, retrieval_audit, retrieval_profile, retrieval_query, relation_release, relation_model, relation_upgrade, relation_upgrade_project, fact_render, run_state, workflow, host_adapter, protocol, protocol_migration, upgrade_plan
@@ -32,6 +33,7 @@ except ImportError:  # 兼容直接执行 validation/knowledge.py
     from business_urls import contains_source_repository_url
     from adapters.ts_java import scan as scan_candidates
     from adapters import ADAPTER_NAMES, get_adapter
+    from pinned_source import PinnedReads
     from evidence_snapshot import snapshot as source_snapshot
     from governance import Governance, json_text, atomic_write, digest, scan_business_terms
     import retrieval_build, retrieval_evaluate, retrieval_audit, retrieval_profile, retrieval_query, relation_release, relation_model, relation_upgrade, relation_upgrade_project, fact_render, run_state, workflow, host_adapter, protocol, protocol_migration, upgrade_plan
@@ -530,16 +532,20 @@ def verify_repos(config: dict) -> None:
             raise KnowledgeError(f"{role} 固定 commit 不存在：{settings['commit']}")
 
 
-def registered_adapter_entries(config: dict) -> set[str] | None:
+def registered_adapter_entries(config: dict, *, anchor_cache: PinnedReads | None = None) -> set[str] | None:
     adapter = config.get("inventory_adapter")
     if adapter is None:
         return None
     if adapter["name"] == "uniapp_pages":
-        return get_adapter("builtin-mixed").inventory_entries(config["repositories"][adapter["repository"]], adapter["manifest_path"])
+        inventory = get_adapter("builtin-mixed").inventory_entries
+        repository = config["repositories"][adapter["repository"]]
+        if anchor_cache is not None:
+            return inventory(repository, adapter["manifest_path"], read_text=anchor_cache.read_text)
+        return inventory(repository, adapter["manifest_path"])
     raise KnowledgeError(f"未知入口盘点适配器：{adapter['name']}")
 
 
-def verify_anchor(anchor: str, config: dict, cache: dict[tuple[str, str], list[str]], allowed_sources: set[str] | None = None) -> None:
+def verify_anchor(anchor: str, config: dict, cache: PinnedReads, allowed_sources: set[str] | None = None) -> None:
     match = ANCHOR.fullmatch(anchor)
     if not match:
         raise KnowledgeError(f"无效源码锚点：{anchor}")
@@ -550,25 +556,14 @@ def verify_anchor(anchor: str, config: dict, cache: dict[tuple[str, str], list[s
         raise KnowledgeError(f"源码锚点仓库 ID 未列入文件 source_revisions：{anchor}")
     if not safe_repo_path(path):
         raise KnowledgeError(f"源码锚点路径须为仓库内相对路径：{anchor}")
-    key = (role, path)
-    if key not in cache:
-        settings = config["repositories"][role]
-        result = subprocess.run(
-            ["git", "-C", settings["path"], "show", f"{settings['commit']}:{path}"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
-        )
-        if result.returncode or "\x00" in result.stdout:
-            raise KnowledgeError(f"固定提交中找不到文本证据：{anchor}")
-        cache[key] = result.stdout.splitlines()
-    if int(number) > len(cache[key]):
+    line_count = cache.line_count(config["repositories"][role], path)
+    if line_count is None:
+        raise KnowledgeError(f"固定提交中找不到文本证据：{anchor}")
+    if int(number) > line_count:
         raise KnowledgeError(f"源码锚点行号越界：{anchor}")
 
 
-def validate_spec_facts(doc: Document, config: dict, cache: dict[tuple[str, str], list[str]], sources: set[str]) -> int:
+def validate_spec_facts(doc: Document, config: dict, cache: PinnedReads, sources: set[str]) -> int:
     header = "| fact_id | 单一结论与条件 | 证据等级 | 固定提交锚点 | 影响的知识文件 |"
     rows = table_rows(doc.body, "## 入口与调用链", header)
     seen: set[str] = set()
@@ -630,7 +625,7 @@ def id_list(value: str, pattern: re.Pattern[str], context: str) -> list[str]:
     return ids
 
 
-def verify_anchors(value: str, config: dict, cache: dict[tuple[str, str], list[str]], context: str, sources: set[str]) -> None:
+def verify_anchors(value: str, config: dict, cache: PinnedReads, context: str, sources: set[str]) -> None:
     anchors = [item.strip() for item in value.split(",") if item.strip()]
     if not anchors:
         raise KnowledgeError(f"{context}: 缺少源码锚点")
@@ -648,7 +643,7 @@ def detail_section(body: str, item_id: str) -> str | None:
 
 
 def validate_spec_catalog(
-    doc: Document, outline: Outline, config: dict, cache: dict[tuple[str, str], list[str]], sources: set[str]
+    doc: Document, outline: Outline, config: dict, cache: PinnedReads, sources: set[str]
 ) -> tuple[dict[str, list[str]], dict[str, list[str]], set[str]]:
     action_header = "| entry_id | api_id | 调用条件 | 证据 |"
     api_header = "| api_id | 接口标识 | 调用方 | 服务入口 | 主处理方法 | 证据 |"
@@ -710,7 +705,7 @@ def validate_spec_catalog(
 
 
 def validate_catalog(
-    doc: Document, expected_rows: dict[str, list[str]], core_ids: set[str], config: dict, cache: dict[tuple[str, str], list[str]], sources: set[str]
+    doc: Document, expected_rows: dict[str, list[str]], core_ids: set[str], config: dict, cache: PinnedReads, sources: set[str]
 ) -> None:
     if doc.doc_type == "api_catalog":
         header = "| api_id | 接口标识 | 调用方 | 主处理方法 | 源码锚点 |"
@@ -774,7 +769,7 @@ def validate_semantic_quality(
     items: list[Document],
     facts: set[str],
     config: dict,
-    cache: dict[tuple[str, str], list[str]],
+    cache: PinnedReads,
     sources: set[str],
 ) -> tuple[int, int, int]:
     """Validate auditable semantic-review records without claiming language understanding."""
@@ -915,7 +910,7 @@ def intent_counts(docs: list[Document], config: dict) -> dict[str, int]:
 
 def validate_project(docs: list[Document], outline: Outline, config: dict, adapter_entries: set[str] | None, *,
                      for_publish: bool = False, entry_coverage: bool = True, local_module: str | None = None,
-                     anchor_cache: dict[tuple[str, str], list[str]] | None = None) -> list[Document]:
+                     anchor_cache: PinnedReads | None = None) -> list[Document]:
     language = content_language.declared(config)
     for doc in docs:
         if doc.doc_type in BUSINESS | ENGINEERING and doc.meta.get("applicability") == "current" and content_language.declared(doc.meta) != language:
@@ -936,7 +931,7 @@ def validate_project(docs: list[Document], outline: Outline, config: dict, adapt
             raise KnowledgeError(f"盘点覆盖说明未交代配置要求的入口类别：{missing_terms}")
     if any(doc.module_id for doc in docs) and outline.meta["inventory_status"] != "complete":
         raise KnowledgeError("完整功能大纲尚未通过自检；先完成入口盘点并标记 inventory_status: complete，再写模块文件")
-    cache = {} if anchor_cache is None else anchor_cache
+    cache = PinnedReads() if anchor_cache is None else anchor_cache
     for entry in outline.entries:
         if local_module and entry[3] != local_module:
             continue
@@ -1545,13 +1540,14 @@ def _main() -> int:
             return 0
         docs, outline = read_documents(source)
         verify_repos(config)
-        adapter_entries = registered_adapter_entries(config)
+        anchor_cache = PinnedReads()
+        adapter_entries = registered_adapter_entries(config, anchor_cache=anchor_cache)
         preparing = args.action in {"impact", "confirm-claims", "prepare", "approve", "policy-review", "evidence-pack", "verifier-calibrate"}
         validation_docs = [replace(doc, meta={**doc.meta, "review_status": "draft"}) if preparing and doc.doc_type in BUSINESS | ENGINEERING else doc for doc in docs]
-        anchor_cache: dict[tuple[str, str], list[str]] = {}
         selected = validate_project(validation_docs, outline, config, adapter_entries, for_publish=args.action == "publish",
                                     entry_coverage=args.action != "impact", anchor_cache=anchor_cache)
-        governance = Governance(project, source, config, docs, outline, sys.modules[__name__], anchor_cache=anchor_cache)
+        governance = Governance(project, source, config, docs, outline, sys.modules[__name__],
+                                anchor_cache=anchor_cache, adapter_entries=adapter_entries)
         audiences = governance.audiences()
         governance.read_evidence()
         governance.validate_evidence(for_publish=args.action == "publish")

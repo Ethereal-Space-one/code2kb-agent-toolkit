@@ -194,15 +194,88 @@ class KnowledgeTests(unittest.TestCase):
             env=env,
         )
 
-    def test_check_shares_pinned_reads_with_call_matching(self) -> None:
-        arguments = ["knowledge.py", "check", "--project-root", str(self.project)]
-        with patch.object(sys, "argv", arguments), patch.object(subprocess, "run", wraps=subprocess.run) as git:
-            with redirect_stdout(io.StringIO()):
-                self.assertEqual(core._main(), 0)
-        commands = [call.args[0] for call in git.call_args_list]
-        for repo in self.repos.values():
-            expected = ["git", "-C", repo["path"], "show", f"{repo['commit']}:dummy.txt"]
-            self.assertEqual(commands.count(expected), 1, expected)
+    def test_cli_reuses_fixed_reads_and_inventory(self) -> None:
+        from adapters import uniapp_pages
+
+        prepare_args = ("--refresh", "--business-topics", "查询", "--business-unknowns", "运行表现",
+                        "--business-keywords", "查询")
+        commands = (
+            ("check", (), 1),
+            ("prepare", ("--module-id", "example.order.query", *prepare_args), 1),
+            ("preflight", ("--module-id", "example.order.query"), 0),
+        )
+        for action, args, inventory_count in commands:
+            with self.subTest(action=action):
+                arguments = ["knowledge.py", action, "--project-root", str(self.project), *args]
+                with patch.object(sys, "argv", arguments), redirect_stdout(io.StringIO()):
+                    with patch.object(subprocess, "run", wraps=subprocess.run) as git:
+                        with patch.object(uniapp_pages, "parse_uniapp_pages", wraps=uniapp_pages.parse_uniapp_pages) as parse:
+                            self.assertEqual(core._main(), 0)
+                commands_run = [call.args[0] for call in git.call_args_list]
+                for role, paths in (("frontend", ("src/pages.json", "dummy.txt")), ("backend", ("dummy.txt",))):
+                    repo = self.repos[role]
+                    for path in paths:
+                        expected = ["git", "-C", repo["path"], "show", f"{repo['commit']}:{path}"]
+                        self.assertEqual(commands_run.count(expected), 1, expected)
+                self.assertEqual(parse.call_count, inventory_count)
+
+    def test_prepare_reuses_absent_and_empty_inventory(self) -> None:
+        arguments = ["knowledge.py", "prepare", "--project-root", str(self.project),
+                     "--module-id", "example.order.query", "--refresh", "--business-topics", "查询",
+                     "--business-unknowns", "运行表现", "--business-keywords", "查询"]
+        for entries in (None, set()):
+            with self.subTest(entries=entries):
+                with patch.object(sys, "argv", arguments), redirect_stdout(io.StringIO()):
+                    with patch.object(core, "registered_adapter_entries", return_value=entries) as inventory:
+                        self.assertEqual(core._main(), 0)
+                inventory.assert_called_once()
+
+    def test_pinned_reads_keep_anchor_scope_and_revision(self) -> None:
+        repo = self.repos["frontend"]
+        cache = core.PinnedReads()
+        config = {"repositories": {"old": repo, "alias": repo}}
+        self.assertEqual(cache.read_text(repo, "dummy.txt"), "frontend")
+        with patch.object(subprocess, "run", wraps=subprocess.run) as git:
+            core.verify_anchor("alias:dummy.txt:1", config, cache, {"alias"})
+            with self.assertRaisesRegex(core.KnowledgeError, "未列入文件 source_revisions"):
+                core.verify_anchor("old:dummy.txt:1", config, cache, {"alias"})
+            with self.assertRaisesRegex(core.KnowledgeError, "行号越界"):
+                core.verify_anchor("alias:dummy.txt:2", config, cache, {"alias"})
+            git.assert_not_called()
+
+        path = Path(repo["path"])
+        write(path / "dummy.txt", "frontend\nsecond line\n")
+        subprocess.run(["git", "-C", str(path), "add", "dummy.txt"], check=True)
+        subprocess.run(["git", "-C", str(path), "-c", "user.name=Test", "-c", "user.email=test@example.com",
+                        "commit", "-qm", "test fixed read revisions"], check=True)
+        commit = subprocess.check_output(["git", "-C", str(path), "rev-parse", "HEAD"], text=True).strip()
+        config["repositories"]["new"] = {**repo, "commit": commit}
+        core.verify_anchor("new:dummy.txt:2", config, cache, {"new"})
+        with self.assertRaisesRegex(core.KnowledgeError, "行号越界"):
+            core.verify_anchor("old:dummy.txt:2", config, cache, {"old"})
+
+    def test_inventory_reader_preserves_json_errors_and_empty_routes(self) -> None:
+        from adapters.uniapp_pages import read_uniapp_pages
+
+        config = {"repositories": self.repos,
+                  "inventory_adapter": {"name": "uniapp_pages", "repository": "frontend", "manifest_path": "src/pages.json"}}
+        repo = self.repos["frontend"]
+        path = Path(repo["path"])
+        for text, expected in (('{"pages":[]}', None), ('{bad json', "不是标准 JSON")):
+            with self.subTest(text=text):
+                write(path / "src/pages.json", text)
+                subprocess.run(["git", "-C", str(path), "add", "src/pages.json"], check=True)
+                subprocess.run(["git", "-C", str(path), "-c", "user.name=Test", "-c", "user.email=test@example.com",
+                                "commit", "-qm", "test inventory manifest"], check=True)
+                repo["commit"] = subprocess.check_output(["git", "-C", str(path), "rev-parse", "HEAD"], text=True).strip()
+                if expected:
+                    with self.assertRaisesRegex(ValueError, expected):
+                        core.registered_adapter_entries(config, anchor_cache=core.PinnedReads())
+                    with self.assertRaisesRegex(ValueError, expected):
+                        read_uniapp_pages(repo, "src/pages.json")
+                else:
+                    self.assertEqual(core.registered_adapter_entries(config, anchor_cache=core.PinnedReads()), set())
+                    self.assertEqual(read_uniapp_pages(repo, "src/pages.json"), set())
 
     def test_business_source_rejects_repository_url_without_technical_label(self):
         overview = self.module / "模块概览.md"
@@ -913,7 +986,7 @@ class KnowledgeTests(unittest.TestCase):
         docs, outline = core.read_documents(self.source)
         _, config = core.read_config(self.project.resolve())
         spec = next(doc for doc in docs if doc.doc_type == "spec")
-        apis, methods, _ = core.validate_spec_catalog(spec, outline, config, {}, core.document_revisions(spec, config))
+        apis, methods, _ = core.validate_spec_catalog(spec, outline, config, core.PinnedReads(), core.document_revisions(spec, config))
         self.assertEqual(set(apis), {"API-001", "API-002"})
         self.assertEqual(set(methods), {"METHOD-001", "METHOD-002"})
 

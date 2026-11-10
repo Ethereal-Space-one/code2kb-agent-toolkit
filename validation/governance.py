@@ -14,8 +14,10 @@ from types import SimpleNamespace
 from urllib.parse import quote
 
 try:
+    from .pinned_source import PinnedReads
     from . import relation_model, fact_render, run_state, verifier, content_language
 except ImportError:
+    from pinned_source import PinnedReads
     import relation_model, fact_render, run_state, verifier, content_language
 
 
@@ -165,12 +167,17 @@ def strict_json(path: Path, allowed: set[str], label: str, optional: frozenset =
     return value, raw
 
 
+_ADAPTER_ENTRIES_UNSET = object()
+
+
 class Governance:
-    def __init__(self, project, source, config, docs, outline, core, *, anchor_cache=None):
+    def __init__(self, project, source, config, docs, outline, core, *, anchor_cache=None,
+                 adapter_entries=_ADAPTER_ENTRIES_UNSET):
         self.project, self.source, self.config = project, source, config
         self.docs, self.outline, self.core = docs, outline, core
         self.by_path = {doc.relative.as_posix(): doc for doc in docs}
-        self._anchor_cache = {} if anchor_cache is None else anchor_cache
+        self._anchor_cache = PinnedReads() if anchor_cache is None else anchor_cache
+        self._adapter_entries = adapter_entries
         self.evidence = {}
         self.evidence_dependencies = {}
         self.policy_inputs = set()
@@ -852,7 +859,12 @@ class Governance:
             raise ValueError(f"模块发布包缺少 {sorted(required - {doc.doc_type for doc in candidates})}；请核对 full/compact profile")
         chosen = {doc.relative for doc in candidates}
         prospective = [replace(doc, meta={**doc.meta, "review_status": "reviewed" if doc.relative in chosen else "draft"}) if doc.module_id == module_id and doc.doc_type in self.core.BUSINESS | self.core.ENGINEERING else doc for doc in self.docs]
-        self.core.validate_project(prospective, self.outline, self.config, None if local else self.core.registered_adapter_entries(self.config),
+        adapter_entries = None
+        if not local:
+            adapter_entries = self._adapter_entries
+            if adapter_entries is _ADAPTER_ENTRIES_UNSET:
+                adapter_entries = self.core.registered_adapter_entries(self.config, anchor_cache=self._anchor_cache)
+        self.core.validate_project(prospective, self.outline, self.config, adapter_entries,
                                    local_module=module_id if local else None, anchor_cache=self._anchor_cache)
         self.core.validate_entry_coverage(spec, self.outline, required=True)
         apis, methods, cores = self.core.validate_spec_catalog(spec, self.outline, self.config, self._anchor_cache,

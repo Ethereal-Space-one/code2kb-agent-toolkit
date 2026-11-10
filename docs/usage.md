@@ -199,6 +199,6 @@ code2kb retrieval-query --project-root /项目 --query "订单查询失败时会
 code2kb preflight --project-root /项目 --module-id example.module
 ```
 
-在语义审核前检查候选集合、来源基线、接口/方法对应和本模块链接，并预览 FAQ 检索标题；不写入项目。跨模块、问答结果、语义与审核门禁等未执行项会明确列出。来源或结构缺失仍报错，其他未完成模块的正文不阻断本模块预检。正式 prepare 不接受该报告作放行依据。
+预检只读检查候选集合、源码基线、接口与方法对应、本模块链接和调用匹配的静态规则，并预览 FAQ 检索标题。已登记的跨模块引用与术语表链接可以延期核对实际目标。未登记的引用、无效的本模块结构和越出知识源的链接会报错。正式 `prepare` 继续核对实际引用目标、部署证据、问答结果和其他全局门槛。
 
 多模块任务可在冻结输入上运行一次全局 impact，再逐模块实质复核、confirm-claims、prepare；最后全局 check 成功且明确 `pending_claim_impacts: 0` 时，无需再逐模块获取空队列。任何输入变化使旧结果失效，批准与发布要求不变。详见[批次与接续手顺](../skills/extract-app-knowledge/references/长任务续跑.md)。

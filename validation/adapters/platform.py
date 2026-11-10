@@ -11,7 +11,7 @@ import hashlib
 from pathlib import PurePosixPath
 
 from .ts_java import MAX_FILES, scan as legacy_scan, git as fixed_git
-from .uniapp_pages import read_uniapp_pages
+from .uniapp_pages import read_pinned_text, read_uniapp_pages
 from .sdk import validate_result
 
 
@@ -154,8 +154,8 @@ class BuiltinMixedAdapter:
     name = "builtin-mixed"
     version = ADAPTER_VERSION
 
-    def inventory_entries(self, repository: dict, manifest_path: str) -> set[str]:
-        return read_uniapp_pages(repository, manifest_path)
+    def inventory_entries(self, repository: dict, manifest_path: str, *, read_text=read_pinned_text) -> set[str]:
+        return read_uniapp_pages(repository, manifest_path, read_text=read_text)
 
     def scan(self, repository_id: str, repository: dict, *, scope: str | None = None,
              uniapp_manifest: str | None = None) -> dict:

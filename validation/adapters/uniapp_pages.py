@@ -3,22 +3,25 @@
 from __future__ import annotations
 
 import json
-import subprocess
+from collections.abc import Callable
+
+try:
+    from ..pinned_source import read_pinned_text
+except ImportError:  # Direct invocation of validation/knowledge.py.
+    from pinned_source import read_pinned_text
 
 
-def read_uniapp_pages(repository: dict[str, str], manifest_path: str) -> set[str]:
-    result = subprocess.run(
-        ["git", "-C", repository["path"], "show", f"{repository['commit']}:{manifest_path}"],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
-    if result.returncode:
+def read_uniapp_pages(repository: dict[str, str], manifest_path: str, *,
+                      read_text: Callable[[dict[str, str], str], str | None] = read_pinned_text) -> set[str]:
+    text = read_text(repository, manifest_path)
+    if text is None:
         raise ValueError(f"固定提交中找不到 UniApp 页面清单：{manifest_path}")
+    return parse_uniapp_pages(text, manifest_path)
+
+
+def parse_uniapp_pages(text: str, manifest_path: str) -> set[str]:
     try:
-        manifest = json.loads(result.stdout)
+        manifest = json.loads(text)
     except json.JSONDecodeError as exc:
         raise ValueError(f"{manifest_path} 不是标准 JSON，需配置适配后的清单") from exc
     if not isinstance(manifest, dict) or not isinstance(manifest.get("pages"), list):
