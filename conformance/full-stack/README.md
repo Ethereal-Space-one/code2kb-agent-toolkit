@@ -19,3 +19,15 @@ python3 -B -m unittest discover -s validation/tests -p test_full_stack_knowledge
 ```
 
 案例只覆盖预先列明的行为分支，不宣称入口穷尽、自动语义配对、全部语言的结构支持或线上问答质量。相同知识被成功发布和召回，只证明工具能够携带该知识；源码是否支持这些结论仍须实际审阅。
+
+## 问答用例维护示例
+
+用 [页面服务与工作端](page-worker/knowledge.md) 模拟一次反馈。原问法是「任务受理是否等于处理完成」，示意错答是「提交返回已受理就代表处理完成」。项目核实 [提交端](page-worker/sources/app/submit.php) 返回 `accepted` 时没有等待工作端，[工作端](page-worker/sources/support/worker.go) 确认消息后才尝试保存。核心预期是「受理不等于完成」，实际处理结果仍需核实。
+
+假设候选正文也把受理写成完成，应先修正文并把原问法、预期和静态对照结果放回模块的「问答自测」。若正文已经区分这两个状态，但反馈缺少当时的召回结果和模型输入，应记录「正文支持预期，检索与回答环节待核查」，继续索取相应材料。该示例使用自编问法和错答，线上结果记为未测。
+
+现有夹具把同一问法用于候选正文回放和检索评测。下面的测试在临时知识项目中调用 `evidence-pack --kind qa_replay`，核对原问法和预期随候选摘要导出，再检查检索是否召回包含预期的业务证据。复核者可结合 [候选示例正文](page-worker/knowledge.md) 做静态对照。
+
+```bash
+python3 -B -m unittest discover -s validation/tests -p test_full_stack_knowledge.py -k page_worker -q
+```

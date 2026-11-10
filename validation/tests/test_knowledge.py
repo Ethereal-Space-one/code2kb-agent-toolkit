@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from contextlib import redirect_stdout
 import io
 import json
@@ -48,7 +49,7 @@ def doc(doc_type: str, body: str, *, reviewed: bool = False, extra: str = "") ->
     )
 
 
-def finalize_fixture(project: Path, module_id: str) -> None:
+def finalize_fixture(project: Path, module_id: str, *, on_prepared: Callable[[dict], None] | None = None) -> None:
     """Prepare explicit test approval; never used on a real user's project."""
     source = project / "知识源"
     outline = source / "功能大纲.md"
@@ -87,6 +88,8 @@ def finalize_fixture(project: Path, module_id: str) -> None:
         result = subprocess.run([sys.executable, str(SCRIPT), *command, "--project-root", str(project)], text=True, capture_output=True)
         if result.returncode:
             raise AssertionError(result.stderr)
+        if command[0] == "prepare" and on_prepared is not None:
+            on_prepared(json.loads(result.stdout))
     init_fixture_repo(project)
     subprocess.run(["git", "-C", str(project), "add", "."], check=True)
     subprocess.run(["git", "-C", str(project), "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-q", "--allow-empty", "-m", "test approval"], check=True)

@@ -4,7 +4,7 @@
 
 **For knowledge maintainers.** Give the [Skill entry](../skills/extract-app-knowledge/SKILL.md) to your AI coding agent; this guide explains your setup and decisions. Neither document belongs in a bot's knowledge corpus.
 
-> Applies to the `2.0.0` toolkit. The command remains `code2kb`. Audit old-brand releases using the version that generated them; see the [rename notes](agent-toolkit-rebrand-plan.md).
+> Applies to the `2.1.0` toolkit. The CLI is `code2kb`. Use the original generating version to audit old-brand releases. See the [rename notes](agent-toolkit-rebrand-plan.md).
 
 For a project containing an old-brand release, retain the original project. Reuse its configuration, knowledge sources and required review materials in a new knowledge Git project, check them and follow the normal review and publication steps. Do not copy the old release directory; this tool will not overwrite it directly.
 
@@ -80,6 +80,8 @@ Internal specifications and API tables retain their literal labels. Business tex
 
 ## 3. Check and prepare a candidate
 
+When drafting QA cases or investigating an incorrect answer, follow the shared [QA case maintenance procedure](../skills/extract-app-knowledge/references/知识写作与复核.md#问答用例维护). Confirm the expected behavior from evidence before updating the project's cases. Record candidate-text review, retrieval results and live answers separately.
+
 After the agent has authored and actually reviewed the content:
 
 ```bash
@@ -99,7 +101,7 @@ To revise text, evidence or language, update the knowledge source, review the im
 - **Human review:** after the actual reviewer has read and approved the named package and its boundaries, record their identity, actual date and exact authorization with `approve --reviewed-by ... --reviewed-at ... --approval-note ...`.
 - **Preauthorized policy:** use `policy-review --evidence-file ... --executed-by ...` only with a valid committed policy and matching review record. A failed gate leaves the package in draft. An AI self-check alone is not authorization.
 
-Optional independent verification exports source-and-claim items with `evidence-pack --kind claim_entailment`; `qa_replay` and `leak_probe` are also available. The project owner runs the verifier and supplies its report, with calibration if policy requires it. Ask the agent to follow the [English workflow](../skills/extract-app-knowledge/contracts/english-workflow.md#review-and-publish); the tool does not call a verification model or authenticate a person.
+For optional independent verification, `evidence-pack --kind claim_entailment` exports claims and pinned source excerpts. A `qa_replay` pack contains the questions, expected behavior and candidate digest. The verifier also reads the business text from that candidate. A `leak_probe` pack identifies the business files for inspection. The project owner runs the verifier and supplies its report, with calibration if required by the policy. See the [English workflow](../skills/extract-app-knowledge/contracts/english-workflow.md#review-and-publish).
 
 After the chosen review, commit the project inputs and authorize publication:
 
