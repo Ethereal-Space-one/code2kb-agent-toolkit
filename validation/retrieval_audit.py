@@ -7,9 +7,9 @@ import re
 from urllib.parse import unquote
 
 try:
-    from .retrieval_model import AUDIENCES, RetrievalError, contained_file, digest, inventory, json_bytes, read_unit, strict_json, SHA
+    from .retrieval_model import AUDIENCES, RetrievalError, contained_file, digest, inventory, json_bytes, markdown_destination, read_unit, strict_json, SHA
 except ImportError:
-    from retrieval_model import AUDIENCES, RetrievalError, contained_file, digest, inventory, json_bytes, read_unit, strict_json, SHA
+    from retrieval_model import AUDIENCES, RetrievalError, contained_file, digest, inventory, json_bytes, markdown_destination, read_unit, strict_json, SHA
 
 
 MANIFEST_FIELDS = {
@@ -71,8 +71,9 @@ def audit_in_release(release_root: Path, release_id: str, *, require_ready: bool
         base_files = registry["views"][entry["audience"]]["files"]
         if any(source not in base_files for source in entry["source_documents"]):
             raise RetrievalError("检索单元出处不在基础发布中")
-        for target in LINK.findall(body):
-            if target.startswith(("#", "http://", "https://", "mailto:")):
+        for raw_target in LINK.findall(body):
+            target = markdown_destination(raw_target)
+            if not target or target.startswith(("#", "http://", "https://", "mailto:")):
                 continue
             local = unquote(target.split("#", 1)[0])
             linked = (path.parent / local).resolve()

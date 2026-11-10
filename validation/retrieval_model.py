@@ -50,6 +50,13 @@ def strict_json(path: Path) -> dict:
     return value
 
 
+def markdown_destination(raw: str) -> str:
+    target = raw.strip()
+    if target.startswith("<") and target.endswith(">"):
+        return target[1:-1]
+    return target
+
+
 def safe_relative(value: str) -> bool:
     if not isinstance(value, str) or not value or "\\" in value:
         return False

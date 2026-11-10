@@ -48,6 +48,21 @@ class RetrievalTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         return self.project / "发布"
 
+    def test_angle_bracket_link_survives_publication_and_retrieval(self):
+        overview = self.fixture.module / "模块概览.md"
+        fixtures.write(overview, overview.read_text(encoding="utf-8") + "\n[范围](<功能与范围.md>)\n[回到说明](<#说明>)\n[当前](<>)\n")
+        fixtures.finalize_fixture(self.project, "example.order.query")
+        self.publish()
+        release = self.build()
+        units = [path.read_text(encoding="utf-8") for path in (release / "检索版").rglob("*.md")]
+        self.assertTrue(any("[范围](<" in body for body in units))
+        self.assertTrue(any("[回到说明](<" in body and "模块概览.md#说明>)" in body for body in units))
+        for args in (("audit-release",),
+                     ("retrieval-evaluate", "--release-id", "retrieval-test", "--suite", str(self.suite_path)),
+                     ("retrieval-audit", "--release-id", "retrieval-test")):
+            result = self.fixture.run_cli(*args)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_business_unit_build_rejects_source_repository_url(self):
         self.publish()
         release = self.project / "发布"

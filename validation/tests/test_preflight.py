@@ -103,6 +103,9 @@ class PreflightTests(unittest.TestCase):
             ('[详情](../../未登记/订单/技术实现.md)', '链接目标未归入'),
             ('[详情](%2F技术实现.md)', '链接须为知识源内相对路径'),
             ('[详情](../../../技术实现.md)', '链接越出知识源'),
+            ('[详情](<../../未登记/订单/技术实现.md>)', '链接目标未归入'),
+            ('[详情](</技术实现.md>)', '链接须为知识源内相对路径'),
+            ('[详情](/../订单/订单查询/模块概览.md)', '链接须为知识源内相对路径'),
         ):
             with self.subTest(reference=reference):
                 fixture.write(path, original + '\n' + reference + '\n')
@@ -110,6 +113,10 @@ class PreflightTests(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(diagnostic, result.stderr)
                 self.assertIn('技术实现.md', result.stderr)
+                prepared = self.prepare()
+                self.assertNotEqual(prepared.returncode, 0)
+                if diagnostic == '链接须为知识源内相对路径':
+                    self.assertIn(diagnostic, prepared.stderr)
 
     def test_preflight_defers_shared_document_and_deployment_checks(self):
         path = self.module / '技术实现.md'

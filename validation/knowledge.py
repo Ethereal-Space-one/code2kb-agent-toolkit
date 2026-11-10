@@ -27,7 +27,7 @@ try:
     from .evidence_snapshot import snapshot as source_snapshot
     from .governance import Governance, json_text, atomic_write, digest, scan_business_terms
     from . import retrieval_build, retrieval_evaluate, retrieval_audit, retrieval_profile, retrieval_query, relation_release, relation_model, relation_upgrade, relation_upgrade_project, fact_render, run_state, workflow, host_adapter, protocol, protocol_migration, upgrade_plan
-    from .retrieval_model import strict_json as retrieval_json
+    from .retrieval_model import markdown_destination, strict_json as retrieval_json
     from . import verifier, content_language, identity
 except ImportError:  # 兼容直接执行 validation/knowledge.py
     from business_urls import contains_source_repository_url
@@ -37,7 +37,7 @@ except ImportError:  # 兼容直接执行 validation/knowledge.py
     from evidence_snapshot import snapshot as source_snapshot
     from governance import Governance, json_text, atomic_write, digest, scan_business_terms
     import retrieval_build, retrieval_evaluate, retrieval_audit, retrieval_profile, retrieval_query, relation_release, relation_model, relation_upgrade, relation_upgrade_project, fact_render, run_state, workflow, host_adapter, protocol, protocol_migration, upgrade_plan
-    from retrieval_model import strict_json as retrieval_json
+    from retrieval_model import markdown_destination, strict_json as retrieval_json
     import verifier, content_language, identity
 
 
@@ -1020,13 +1020,14 @@ def validate_project(docs: list[Document], outline: Outline, config: dict, adapt
         if reference:
             line = without_links.count("\n", 0, reference.start()) + 1
             raise KnowledgeError(f"{doc.relative}: 正文第 {line} 行有纯文字文件引用 {reference.group(0)}；请改成指向发布文件的 Markdown 链接或就地说明")
-        for target in LINK.findall(doc.body):
+        for raw_target in LINK.findall(doc.body):
+            target = markdown_destination(raw_target)
             if target.startswith(("http://", "https://", "#", "mailto:")):
                 continue
             local = unquote(target.split("#", 1)[0])
             if not local.endswith(".md"):
                 continue
-            if local_module and (Path(local).is_absolute() or "\\" in local or re.match(r"^[A-Za-z]:", local)):
+            if Path(local).is_absolute() or "\\" in local or re.match(r"^[A-Za-z]:", local):
                 raise KnowledgeError(f"{doc.relative}: 链接须为知识源内相对路径：{target}")
             joined = Path(*((doc.relative.parent / local).parts))
             normalized = Path(*[p for p in joined.parts if p != "."])
@@ -1169,7 +1170,8 @@ def validate_bundle(root: Path, engineering: bool, *, source_urls: bool = True, 
             raise KnowledgeError(f"发布物有未链接的文件引用：{relative} → {plain.group(0)}")
         if not engineering:
             scan_business_terms(sys.modules[__name__], body, relative.as_posix(), source_urls=source_urls, english_rules=english_rules)
-        for target in LINK.findall(body):
+        for raw_target in LINK.findall(body):
+            target = markdown_destination(raw_target)
             if target.startswith(("http://", "https://", "mailto:")) or target.startswith("#"):
                 continue
             local = unquote(target.split("#", 1)[0])
