@@ -230,7 +230,7 @@ Code and IDs in these diagrams illustrate the structure. The detail diagrams use
 | Import into retrieval | [Retrieval contract](docs/retrieval-contract.md) |
 | Understand guarantees | [Assurance boundaries](docs/assurance-matrix.md) |
 
-Current project version: `2.1.0` (pending release). See the [QA case maintenance release notes](docs/2.1.0-release-notes.md) or the [2.0.0 release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.0.0).
+Current project version: `2.1.0`. See the [QA case maintenance release notes](docs/2.1.0-release-notes.md) or the [2.1.0 release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.1.0).
 
 Formerly Code2KB Spec, **Code2KB Agent Toolkit** now uses `code2kb-agent-toolkit` for its repository and Python distribution; the command remains `code2kb`.
 
