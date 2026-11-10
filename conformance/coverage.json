@@ -21,7 +21,8 @@
       "validation/tests/test_knowledge.py::KnowledgeTests.test_configured_coverage_terms_are_enforced"
     ],
     "C2KB-CONSISTENCY-002": [
-      "validation/tests/test_knowledge.py::KnowledgeTests.test_publish_requires_four_qa_passes"
+      "validation/tests/test_knowledge.py::KnowledgeTests.test_publish_requires_four_qa_passes",
+      "validation/tests/test_full_stack_knowledge.py::FullStackKnowledgeTests.test_page_worker_acceptance_does_not_become_completion"
     ],
     "C2KB-CONSISTENCY-003": [
       "validation/tests/test_governance.py::GovernanceTests.test_changed_fact_reports_affected_file"

@@ -13,10 +13,10 @@ from urllib.parse import unquote
 
 try:
     from . import content_language
-    from .retrieval_model import AUDIENCES, SCHEMA, RetrievalError, digest, inventory, json_bytes, read_unit, render_unit, strict_json
+    from .retrieval_model import AUDIENCES, SCHEMA, RetrievalError, digest, inventory, json_bytes, markdown_destination, read_unit, render_unit, strict_json
 except ImportError:
     import content_language
-    from retrieval_model import AUDIENCES, SCHEMA, RetrievalError, digest, inventory, json_bytes, read_unit, render_unit, strict_json
+    from retrieval_model import AUDIENCES, SCHEMA, RetrievalError, digest, inventory, json_bytes, markdown_destination, read_unit, render_unit, strict_json
 
 
 SOURCE_ORDER = {
@@ -173,18 +173,20 @@ def clean_title(title: str) -> str:
 
 def rewrite_links(content: str, source: Path, destination: Path) -> str:
     def rewrite(match):
-        target = match[2]
-        if target.startswith(("http://", "https://", "mailto:")):
+        target = markdown_destination(match[2])
+        if not target or target.startswith(("http://", "https://", "mailto:")):
             return match[0]
-        if target.startswith("#"):
-            relative = os.path.relpath(source, destination.parent).replace(os.sep, "/")
-            return f"[{match[1]}]({relative}{target})"
-        source_target = (source.parent / unquote(target.split("#", 1)[0])).resolve()
-        if not source_target.is_file():
-            return match[0]
+        filename, separator, fragment = target.partition("#")
+        source_target = source
+        if filename:
+            source_target = (source.parent / unquote(filename)).resolve()
+            if not source_target.is_file():
+                return match[0]
         relative = os.path.relpath(source_target, destination.parent).replace(os.sep, "/")
-        fragment = "#" + target.split("#", 1)[1] if "#" in target else ""
-        return f"[{match[1]}]({relative}{fragment})"
+        rewritten = relative + separator + fragment
+        if match[2].lstrip().startswith("<"):
+            rewritten = f"<{rewritten}>"
+        return f"[{match[1]}]({rewritten})"
     return LINK.sub(rewrite, content)
 
 

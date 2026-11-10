@@ -73,6 +73,87 @@ class PreflightTests(unittest.TestCase):
                 finally:
                     fixture.write(path, original)
 
+    def test_matching_tables_cannot_agree_on_invalid_rows(self):
+        paths = [self.module / name for name in ('结构化规格.md', '接口与调用.md')]
+        originals = [path.read_text(encoding='utf-8') for path in paths]
+        changes = (
+            (lambda row: row.replace('| 已匹配 |', '| 非法状态 |'), '调用匹配状态无效'),
+            (lambda row: '', '调用匹配表须覆盖全部接口'),
+            (lambda row: row.replace('frontend:dummy.txt:1', '无'), '已匹配须有调用方和服务方证据'),
+        )
+        for transform, diagnostic in changes:
+            with self.subTest(diagnostic=diagnostic):
+                for path, original in zip(paths, originals):
+                    lines = original.splitlines(keepends=True)
+                    index = next(i for i, row in enumerate(lines) if '| 已匹配 |' in row)
+                    lines[index] = transform(lines[index])
+                    fixture.write(path, ''.join(lines))
+                before = self.snapshot()
+                for result in (self.preflight(), self.prepare()):
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn(diagnostic, result.stderr)
+                    self.assertIn('结构化规格.md', result.stderr)
+                self.assertEqual(before, self.snapshot())
+
+    def test_preflight_rejects_unregistered_reference_targets(self):
+        path = self.module / '技术实现.md'
+        original = path.read_text(encoding='utf-8')
+        for reference, diagnostic in (
+            ('unknown.module#FACT-999', '模块未在功能大纲登记'),
+            ('[详情](../../未登记/订单/技术实现.md)', '链接目标未归入'),
+            ('[详情](%2F技术实现.md)', '链接须为知识源内相对路径'),
+            ('[详情](../../../技术实现.md)', '链接越出知识源'),
+            ('[详情](<../../未登记/订单/技术实现.md>)', '链接目标未归入'),
+            ('[详情](</技术实现.md>)', '链接须为知识源内相对路径'),
+            ('[详情](/../订单/订单查询/模块概览.md)', '链接须为知识源内相对路径'),
+        ):
+            with self.subTest(reference=reference):
+                fixture.write(path, original + '\n' + reference + '\n')
+                result = self.preflight()
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(diagnostic, result.stderr)
+                self.assertIn('技术实现.md', result.stderr)
+                prepared = self.prepare()
+                self.assertNotEqual(prepared.returncode, 0)
+                if diagnostic == '链接须为知识源内相对路径':
+                    self.assertIn(diagnostic, prepared.stderr)
+
+    def test_preflight_defers_shared_document_and_deployment_checks(self):
+        path = self.module / '技术实现.md'
+        fixture.write(path, path.read_text(encoding='utf-8') + '\n[术语](../../术语表.md)\n')
+        for name in ('结构化规格.md', '接口与调用.md'):
+            path = self.module / name
+            original = path.read_text(encoding='utf-8')
+            fixture.write(path, original.replace('| 未验证 | 静态匹配 |', '| EV-DEP-001 | 静态匹配 |'))
+        result = self.preflight()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('evidence_lifecycle', json.loads(result.stdout)['not_checked'])
+        failure = self.prepare()
+        self.assertNotEqual(failure.returncode, 0)
+        self.assertIn('EV-DEP-001', failure.stderr)
+
+    def test_preflight_checks_module_directory_components_and_document_identity(self):
+        outline = self.source / '功能大纲.md'
+        original = outline.read_text(encoding='utf-8')
+        fixture.write(outline, original.replace('| 订单 | 订单查询 |', '| 订单/订单查询 | . |'))
+        result = self.preflight()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('模块目录必须是安全的两级相对路径', result.stderr)
+        fixture.write(outline, original.replace('| 销售 | 订单 |', '| 订单 | 订单查询 |'))
+        path = self.module / '模块概览.md'
+        fixture.write(path, path.read_text(encoding='utf-8').replace(MODULE, 'app.sales.order'))
+        result = self.preflight()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('module_id 须与预检模块一致', result.stderr)
+
+    def test_preflight_rejects_a_symlinked_module_directory(self):
+        destination = self.project.parent / 'relocated-module'
+        self.module.rename(destination)
+        self.module.symlink_to(destination, target_is_directory=True)
+        result = self.preflight()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('知识源不允许符号链接', result.stderr)
+
     def test_cross_module_references_are_explicitly_deferred(self):
         path = self.module / '技术实现.md'
         fixture.write(path, path.read_text() + '\napp.sales.order#FACT-999\n[相关](../../销售/订单/技术实现.md)\n')

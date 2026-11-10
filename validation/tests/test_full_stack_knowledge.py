@@ -104,7 +104,19 @@ class FullStackKnowledgeTests(unittest.TestCase):
         fixture.write(module / "功能与范围.md", document("scope", f"# {case['topic']}：功能与范围\n\n## 范围\n\n只说明本模块所列条件与失败分支；实际使用权限和线上行为未验证。\n"))
         detail = "\n".join(f"- {f['fact_id']}：{f['claim']}；出处 {', '.join(f['anchors'])}。" for f in case["facts"])
         fixture.write(module / "技术实现.md", document("implementation", f"# {case['topic']}：技术实现\n\n## 证据与边界\n\n{detail}\n", technical=True))
-        fixture.finalize_fixture(self.project, module_id)
+
+        def check_qa_replay(prepared: dict) -> None:
+            exported = self.run_cli("evidence-pack", "--module-id", module_id, "--kind", "qa_replay")
+            self.assertEqual(exported.returncode, 0, exported.stderr)
+            pack = json.loads(exported.stdout)
+            self.assertEqual(pack["subject_digest"], prepared["review_subject_digest"])
+            self.assertEqual(pack["module_id"], module_id)
+            items = [item for item in pack["items"] if item["question"] == case["query"]]
+            self.assertEqual(len(items), 1)
+            self.assertEqual(items[0]["expected_behavior"], case["required_phrases"][0])
+            self.assertIn(items[0]["expected_behavior"], (module / "模块概览.md").read_text(encoding="utf-8"))
+
+        fixture.finalize_fixture(self.project, module_id, on_prepared=check_qa_replay if case_id == "page-worker" else None)
         suite = {"schema_version": "0.1", "suite_id": case_id, "audience": "business", "cases": [{
             "case_id": case_id, "query": case["query"], "expected_module_ids": [module_id], "expected_unit_ids": [],
             "required_phrases": case["required_phrases"], "required_unknown_phrases": case["unknown_phrases"],

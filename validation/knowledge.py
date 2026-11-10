@@ -23,19 +23,21 @@ try:
     from .business_urls import contains_source_repository_url
     from .adapters.ts_java import scan as scan_candidates
     from .adapters import ADAPTER_NAMES, get_adapter
+    from .pinned_source import PinnedReads
     from .evidence_snapshot import snapshot as source_snapshot
     from .governance import Governance, json_text, atomic_write, digest, scan_business_terms
     from . import retrieval_build, retrieval_evaluate, retrieval_audit, retrieval_profile, retrieval_query, relation_release, relation_model, relation_upgrade, relation_upgrade_project, fact_render, run_state, workflow, host_adapter, protocol, protocol_migration, upgrade_plan
-    from .retrieval_model import strict_json as retrieval_json
+    from .retrieval_model import markdown_destination, strict_json as retrieval_json
     from . import verifier, content_language, identity
 except ImportError:  # 兼容直接执行 validation/knowledge.py
     from business_urls import contains_source_repository_url
     from adapters.ts_java import scan as scan_candidates
     from adapters import ADAPTER_NAMES, get_adapter
+    from pinned_source import PinnedReads
     from evidence_snapshot import snapshot as source_snapshot
     from governance import Governance, json_text, atomic_write, digest, scan_business_terms
     import retrieval_build, retrieval_evaluate, retrieval_audit, retrieval_profile, retrieval_query, relation_release, relation_model, relation_upgrade, relation_upgrade_project, fact_render, run_state, workflow, host_adapter, protocol, protocol_migration, upgrade_plan
-    from retrieval_model import strict_json as retrieval_json
+    from retrieval_model import markdown_destination, strict_json as retrieval_json
     import verifier, content_language, identity
 
 
@@ -360,15 +362,17 @@ def read_documents(source: Path, *, module_id: str | None = None) -> tuple[list[
     if not (source / "功能大纲.md").is_file():
         raise KnowledgeError("缺少知识源/功能大纲.md")
     paths = []
-    if module_id is not None:
+    requested_module = module_id
+    if requested_module is not None:
         meta, body, _ = parse_frontmatter(source / "功能大纲.md")
         inventory = parse_outline(body, meta)
         if module_id not in inventory.modules:
             raise KnowledgeError(f"模块未在功能大纲登记：{module_id}")
         domain, module, _ = inventory.modules[module_id]
         relative_root = Path(domain, module)
-        if len(relative_root.parts) != 2 or not safe_repo_path(relative_root.as_posix()):
-            raise KnowledgeError("模块目录必须是安全的两级相对路径")
+        if any(not safe_repo_path(part) or Path(part).parts != (part,) or part.startswith(".")
+               for part in (domain, module)):
+            raise KnowledgeError(f"{module_id}: 模块目录必须是安全的两级相对路径")
         paths = [source / "功能大纲.md", *sorted((source / relative_root).rglob("*.md"))]
     else:
         paths = sorted(source.rglob("*.md"))
@@ -402,6 +406,8 @@ def read_documents(source: Path, *, module_id: str | None = None) -> tuple[list[
         module_id = meta.get("module_id") if domain else None
         if domain and (not module_id or not re.fullmatch(r"[a-z][a-z0-9_.-]*", module_id)):
             raise KnowledgeError(f"{relative}: 缺少稳定 module_id")
+        if requested_module is not None and domain and module_id != requested_module:
+            raise KnowledgeError(f"{relative}: module_id 须与预检模块一致：{requested_module}")
         if len(parts) == 4 and not meta.get("scene_id"):
             raise KnowledgeError(f"{relative}: 场景文件需要 scene_id")
         if meta["review_status"] == "reviewed":
@@ -526,16 +532,20 @@ def verify_repos(config: dict) -> None:
             raise KnowledgeError(f"{role} 固定 commit 不存在：{settings['commit']}")
 
 
-def registered_adapter_entries(config: dict) -> set[str] | None:
+def registered_adapter_entries(config: dict, *, anchor_cache: PinnedReads | None = None) -> set[str] | None:
     adapter = config.get("inventory_adapter")
     if adapter is None:
         return None
     if adapter["name"] == "uniapp_pages":
-        return get_adapter("builtin-mixed").inventory_entries(config["repositories"][adapter["repository"]], adapter["manifest_path"])
+        inventory = get_adapter("builtin-mixed").inventory_entries
+        repository = config["repositories"][adapter["repository"]]
+        if anchor_cache is not None:
+            return inventory(repository, adapter["manifest_path"], read_text=anchor_cache.read_text)
+        return inventory(repository, adapter["manifest_path"])
     raise KnowledgeError(f"未知入口盘点适配器：{adapter['name']}")
 
 
-def verify_anchor(anchor: str, config: dict, cache: dict[tuple[str, str], list[str]], allowed_sources: set[str] | None = None) -> None:
+def verify_anchor(anchor: str, config: dict, cache: PinnedReads, allowed_sources: set[str] | None = None) -> None:
     match = ANCHOR.fullmatch(anchor)
     if not match:
         raise KnowledgeError(f"无效源码锚点：{anchor}")
@@ -546,25 +556,14 @@ def verify_anchor(anchor: str, config: dict, cache: dict[tuple[str, str], list[s
         raise KnowledgeError(f"源码锚点仓库 ID 未列入文件 source_revisions：{anchor}")
     if not safe_repo_path(path):
         raise KnowledgeError(f"源码锚点路径须为仓库内相对路径：{anchor}")
-    key = (role, path)
-    if key not in cache:
-        settings = config["repositories"][role]
-        result = subprocess.run(
-            ["git", "-C", settings["path"], "show", f"{settings['commit']}:{path}"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
-        )
-        if result.returncode or "\x00" in result.stdout:
-            raise KnowledgeError(f"固定提交中找不到文本证据：{anchor}")
-        cache[key] = result.stdout.splitlines()
-    if int(number) > len(cache[key]):
+    line_count = cache.line_count(config["repositories"][role], path)
+    if line_count is None:
+        raise KnowledgeError(f"固定提交中找不到文本证据：{anchor}")
+    if int(number) > line_count:
         raise KnowledgeError(f"源码锚点行号越界：{anchor}")
 
 
-def validate_spec_facts(doc: Document, config: dict, cache: dict[tuple[str, str], list[str]], sources: set[str]) -> int:
+def validate_spec_facts(doc: Document, config: dict, cache: PinnedReads, sources: set[str]) -> int:
     header = "| fact_id | 单一结论与条件 | 证据等级 | 固定提交锚点 | 影响的知识文件 |"
     rows = table_rows(doc.body, "## 入口与调用链", header)
     seen: set[str] = set()
@@ -626,7 +625,7 @@ def id_list(value: str, pattern: re.Pattern[str], context: str) -> list[str]:
     return ids
 
 
-def verify_anchors(value: str, config: dict, cache: dict[tuple[str, str], list[str]], context: str, sources: set[str]) -> None:
+def verify_anchors(value: str, config: dict, cache: PinnedReads, context: str, sources: set[str]) -> None:
     anchors = [item.strip() for item in value.split(",") if item.strip()]
     if not anchors:
         raise KnowledgeError(f"{context}: 缺少源码锚点")
@@ -644,7 +643,7 @@ def detail_section(body: str, item_id: str) -> str | None:
 
 
 def validate_spec_catalog(
-    doc: Document, outline: Outline, config: dict, cache: dict[tuple[str, str], list[str]], sources: set[str]
+    doc: Document, outline: Outline, config: dict, cache: PinnedReads, sources: set[str]
 ) -> tuple[dict[str, list[str]], dict[str, list[str]], set[str]]:
     action_header = "| entry_id | api_id | 调用条件 | 证据 |"
     api_header = "| api_id | 接口标识 | 调用方 | 服务入口 | 主处理方法 | 证据 |"
@@ -706,7 +705,7 @@ def validate_spec_catalog(
 
 
 def validate_catalog(
-    doc: Document, expected_rows: dict[str, list[str]], core_ids: set[str], config: dict, cache: dict[tuple[str, str], list[str]], sources: set[str]
+    doc: Document, expected_rows: dict[str, list[str]], core_ids: set[str], config: dict, cache: PinnedReads, sources: set[str]
 ) -> None:
     if doc.doc_type == "api_catalog":
         header = "| api_id | 接口标识 | 调用方 | 主处理方法 | 源码锚点 |"
@@ -770,7 +769,7 @@ def validate_semantic_quality(
     items: list[Document],
     facts: set[str],
     config: dict,
-    cache: dict[tuple[str, str], list[str]],
+    cache: PinnedReads,
     sources: set[str],
 ) -> tuple[int, int, int]:
     """Validate auditable semantic-review records without claiming language understanding."""
@@ -911,7 +910,7 @@ def intent_counts(docs: list[Document], config: dict) -> dict[str, int]:
 
 def validate_project(docs: list[Document], outline: Outline, config: dict, adapter_entries: set[str] | None, *,
                      for_publish: bool = False, entry_coverage: bool = True, local_module: str | None = None,
-                     anchor_cache: dict[tuple[str, str], list[str]] | None = None) -> list[Document]:
+                     anchor_cache: PinnedReads | None = None) -> list[Document]:
     language = content_language.declared(config)
     for doc in docs:
         if doc.doc_type in BUSINESS | ENGINEERING and doc.meta.get("applicability") == "current" and content_language.declared(doc.meta) != language:
@@ -932,7 +931,7 @@ def validate_project(docs: list[Document], outline: Outline, config: dict, adapt
             raise KnowledgeError(f"盘点覆盖说明未交代配置要求的入口类别：{missing_terms}")
     if any(doc.module_id for doc in docs) and outline.meta["inventory_status"] != "complete":
         raise KnowledgeError("完整功能大纲尚未通过自检；先完成入口盘点并标记 inventory_status: complete，再写模块文件")
-    cache = {} if anchor_cache is None else anchor_cache
+    cache = PinnedReads() if anchor_cache is None else anchor_cache
     for entry in outline.entries:
         if local_module and entry[3] != local_module:
             continue
@@ -992,7 +991,9 @@ def validate_project(docs: list[Document], outline: Outline, config: dict, adapt
             for match in FACT_REF.finditer(technical_doc.body):
                 target = match.group("module") or module_id
                 if local_module and target != local_module:
-                    continue  # Explicitly deferred to the full project check.
+                    if target not in outline.modules:
+                        raise KnowledgeError(f"{technical_doc.relative}: 引用的模块未在功能大纲登记：{match.group(0)}")
+                    continue  # Defer checking the registered module's facts.
                 if match.group("fact") not in facts_by_module.get(target, set()):
                     raise KnowledgeError(f"{technical_doc.relative}: 事实编号未在 {target} 的规格中定义：{match.group(0)}")
         if ("api_catalog" in technical or "method_catalog" in technical) and "implementation" not in technical:
@@ -1012,18 +1013,22 @@ def validate_project(docs: list[Document], outline: Outline, config: dict, adapt
             validate_catalog(technical["method_catalog"], method_rows, core_ids, config, cache, sources)
     selected = [doc for doc in docs if doc.publishable]
     selected_paths = {doc.relative for doc in selected}
+    module_dirs = {record[:2] for record in outline.modules.values()} if local_module else set()
     for doc in selected:
         without_links = LINK.sub("", doc.body)
         reference = PLAIN_MD_REF.search(without_links)
         if reference:
             line = without_links.count("\n", 0, reference.start()) + 1
             raise KnowledgeError(f"{doc.relative}: 正文第 {line} 行有纯文字文件引用 {reference.group(0)}；请改成指向发布文件的 Markdown 链接或就地说明")
-        for target in LINK.findall(doc.body):
+        for raw_target in LINK.findall(doc.body):
+            target = markdown_destination(raw_target)
             if target.startswith(("http://", "https://", "#", "mailto:")):
                 continue
             local = unquote(target.split("#", 1)[0])
             if not local.endswith(".md"):
                 continue
+            if Path(local).is_absolute() or "\\" in local or re.match(r"^[A-Za-z]:", local):
+                raise KnowledgeError(f"{doc.relative}: 链接须为知识源内相对路径：{target}")
             joined = Path(*((doc.relative.parent / local).parts))
             normalized = Path(*[p for p in joined.parts if p != "."])
             # Resolve relative path segments without following filesystem links.
@@ -1035,11 +1040,12 @@ def validate_project(docs: list[Document], outline: Outline, config: dict, adapt
                     stack.pop()
                 else:
                     stack.append(part)
-            if local_module:
-                root = Path(doc.domain, doc.module)
-                if not Path(*stack).is_relative_to(root):
-                    continue  # Cross-module targets are outside preflight's scope.
-            if Path(*stack) not in selected_paths:
+            target_path = Path(*stack)
+            if local_module and tuple(stack[:2]) != (doc.domain, doc.module):
+                if target_path == Path("术语表.md") or (len(stack) >= 3 and tuple(stack[:2]) in module_dirs):
+                    continue  # Defer checking the registered module or shared document.
+                raise KnowledgeError(f"{doc.relative}: 链接目标未归入已登记模块或共享文档：{target}")
+            if target_path not in selected_paths:
                 raise KnowledgeError(f"{doc.relative}: 链接目标未发布：{target}")
     return selected
 
@@ -1164,7 +1170,8 @@ def validate_bundle(root: Path, engineering: bool, *, source_urls: bool = True, 
             raise KnowledgeError(f"发布物有未链接的文件引用：{relative} → {plain.group(0)}")
         if not engineering:
             scan_business_terms(sys.modules[__name__], body, relative.as_posix(), source_urls=source_urls, english_rules=english_rules)
-        for target in LINK.findall(body):
+        for raw_target in LINK.findall(body):
+            target = markdown_destination(raw_target)
             if target.startswith(("http://", "https://", "mailto:")) or target.startswith("#"):
                 continue
             local = unquote(target.split("#", 1)[0])
@@ -1535,13 +1542,14 @@ def _main() -> int:
             return 0
         docs, outline = read_documents(source)
         verify_repos(config)
-        adapter_entries = registered_adapter_entries(config)
+        anchor_cache = PinnedReads()
+        adapter_entries = registered_adapter_entries(config, anchor_cache=anchor_cache)
         preparing = args.action in {"impact", "confirm-claims", "prepare", "approve", "policy-review", "evidence-pack", "verifier-calibrate"}
         validation_docs = [replace(doc, meta={**doc.meta, "review_status": "draft"}) if preparing and doc.doc_type in BUSINESS | ENGINEERING else doc for doc in docs]
-        anchor_cache: dict[tuple[str, str], list[str]] = {}
         selected = validate_project(validation_docs, outline, config, adapter_entries, for_publish=args.action == "publish",
                                     entry_coverage=args.action != "impact", anchor_cache=anchor_cache)
-        governance = Governance(project, source, config, docs, outline, sys.modules[__name__], anchor_cache=anchor_cache)
+        governance = Governance(project, source, config, docs, outline, sys.modules[__name__],
+                                anchor_cache=anchor_cache, adapter_entries=adapter_entries)
         audiences = governance.audiences()
         governance.read_evidence()
         governance.validate_evidence(for_publish=args.action == "publish")

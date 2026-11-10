@@ -4,7 +4,7 @@
 
 本文件面向知识库维护者；AI 使用独立的 [Skill 入口](../skills/extract-app-knowledge/SKILL.md)。操作手顺与 AI 指令都不进入机器人语料。
 
-> 适用于工程 `2.0.0`：命令仍为 `code2kb`；源文件协议保持不变，旧品牌发布快照请用生成时对应的工具审计。AI 的执行入口是 [`skills/extract-app-knowledge/SKILL.md`](../skills/extract-app-knowledge/SKILL.md)。
+> 适用于工程 `2.1.0`，命令为 `code2kb`。旧品牌发布快照请用生成时对应的工具审计。AI 的执行入口是 [`skills/extract-app-knowledge/SKILL.md`](../skills/extract-app-knowledge/SKILL.md)。
 
 ## 工作方式
 
@@ -88,6 +88,8 @@ code2kb analyze-candidates --project-root /项目 --repository-id source \
 
 ## 常用命令
 
+首次补充问答自测或收到实际错答时，先按[问答用例维护](../skills/extract-app-knowledge/references/知识写作与复核.md#问答用例维护)核实预期并记录到项目。候选正文、检索和线上回答分别复测。
+
 ```bash
 code2kb check --project-root /项目
 code2kb impact --project-root /项目 --module-id example.module
@@ -133,13 +135,13 @@ code2kb policy-review --project-root /项目 --module-id example.module \
 
 策略审核默认只核对记录与摘要。若希望由另一方（另一个 AI 会话、CI 服务或人）逐条检查“结论是否被所引源码支持”，在策略中使用 `1.1`，参考[示例策略](../templates/自动审核策略-验证者.example.json)。流程如下：
 
-1. 作者 AI 完成 `prepare`。任何人都可以运行只读命令生成验证包，验证者**只拿这份包**，看不到作者的推理：
+1. 作者 AI 完成 `prepare`。运行只读命令生成验证包，独立验证者按检查类型读取该包和所需的候选材料。
 
 ```bash
 code2kb evidence-pack --project-root /项目 --module-id example.module --kind claim_entailment
 ```
 
-`--kind` 还可取 `qa_replay`（回放问答自测）和 `leak_probe`（检查业务文件是否泄露源码细节）。包内的每一项已带固定提交的源码片段、结论文字摘要和片段摘要。
+`claim_entailment` 包提供结论、固定提交的源码片段及摘要。`qa_replay` 包提供问法、预期行为和候选摘要，验证者另读同一候选的业务正文。`leak_probe` 包列出业务文件及其摘要，验证者核对对应正文中的泄漏。
 
 2. 首次使用某个验证者前先校准：工具从项目自己的 `CODE_VERIFIED` 事实生成含注入错误的题目，答案键保存在项目目录之外，不让验证者读到：
 
@@ -197,6 +199,6 @@ code2kb retrieval-query --project-root /项目 --query "订单查询失败时会
 code2kb preflight --project-root /项目 --module-id example.module
 ```
 
-在语义审核前检查候选集合、来源基线、接口/方法对应和本模块链接，并预览 FAQ 检索标题；不写入项目。跨模块、问答结果、语义与审核门禁等未执行项会明确列出。来源或结构缺失仍报错，其他未完成模块的正文不阻断本模块预检。正式 prepare 不接受该报告作放行依据。
+预检只读检查候选集合、源码基线、接口与方法对应、本模块链接和调用匹配的静态规则，并预览 FAQ 检索标题。已登记的跨模块引用与术语表链接可以延期核对实际目标。未登记的引用、无效的本模块结构和越出知识源的链接会报错。正式 `prepare` 继续核对实际引用目标、部署证据、问答结果和其他全局门槛。
 
 多模块任务可在冻结输入上运行一次全局 impact，再逐模块实质复核、confirm-claims、prepare；最后全局 check 成功且明确 `pending_claim_impacts: 0` 时，无需再逐模块获取空队列。任何输入变化使旧结果失效，批准与发布要求不变。详见[批次与接续手顺](../skills/extract-app-knowledge/references/长任务续跑.md)。

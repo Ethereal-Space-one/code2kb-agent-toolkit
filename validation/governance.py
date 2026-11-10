@@ -14,8 +14,10 @@ from types import SimpleNamespace
 from urllib.parse import quote
 
 try:
+    from .pinned_source import PinnedReads
     from . import relation_model, fact_render, run_state, verifier, content_language
 except ImportError:
+    from pinned_source import PinnedReads
     import relation_model, fact_render, run_state, verifier, content_language
 
 
@@ -165,12 +167,17 @@ def strict_json(path: Path, allowed: set[str], label: str, optional: frozenset =
     return value, raw
 
 
+_ADAPTER_ENTRIES_UNSET = object()
+
+
 class Governance:
-    def __init__(self, project, source, config, docs, outline, core, *, anchor_cache=None):
+    def __init__(self, project, source, config, docs, outline, core, *, anchor_cache=None,
+                 adapter_entries=_ADAPTER_ENTRIES_UNSET):
         self.project, self.source, self.config = project, source, config
         self.docs, self.outline, self.core = docs, outline, core
         self.by_path = {doc.relative.as_posix(): doc for doc in docs}
-        self._anchor_cache = {} if anchor_cache is None else anchor_cache
+        self._anchor_cache = PinnedReads() if anchor_cache is None else anchor_cache
+        self._adapter_entries = adapter_entries
         self.evidence = {}
         self.evidence_dependencies = {}
         self.policy_inputs = set()
@@ -657,26 +664,32 @@ class Governance:
                 "coverage": relation_model.coverage(spec.module_id, known, data["topics"], links),
             }
 
+    def validate_static_matches(self, spec):
+        api_ids = {row[0] for row in self.core.table_rows(spec.body, "## 接口契约", "| api_id | 接口标识 | 调用方 | 服务入口 | 主处理方法 | 证据 |")}
+        rows = self.core.table_rows(spec.body, "## 调用匹配", MATCH_HEADER)
+        found = set()
+        sources = self.core.document_revisions(spec, self.config)
+        for api_id, status, caller, service, _, boundary in rows:
+            context = f"{spec.relative}: {api_id}"
+            if api_id in found or status not in {"已匹配", "疑似匹配", "未匹配", "外部依赖"} or not boundary:
+                raise ValueError(f"{context}: 调用匹配状态无效")
+            for value in (caller, service):
+                if value not in {"无", "UNKNOWN"}:
+                    self.core.verify_anchors(value, self.config, self._anchor_cache, context, sources)
+            if status == "已匹配" and (caller in {"无", "UNKNOWN"} or service in {"无", "UNKNOWN"}):
+                raise ValueError(f"{context}: 已匹配须有调用方和服务方证据")
+            found.add(api_id)
+        if found != api_ids:
+            raise ValueError(f"调用匹配表须覆盖全部接口：{spec.relative}")
+        return rows
+
     def validate_matches(self, for_publish=False):
         released_modules = {doc.module_id for doc in self.docs if doc.publishable}
         for spec in (doc for doc in self.docs if doc.doc_type == "spec"):
-            api_ids = {row[0] for row in self.core.table_rows(spec.body, "## 接口契约", "| api_id | 接口标识 | 调用方 | 服务入口 | 主处理方法 | 证据 |")}
-            rows = self.core.table_rows(spec.body, "## 调用匹配", MATCH_HEADER)
-            found = set()
-            sources = self.core.document_revisions(spec, self.config)
-            for api_id, status, caller, service, deployment, boundary in rows:
-                if api_id in found or status not in {"已匹配", "疑似匹配", "未匹配", "外部依赖"} or not boundary:
-                    raise ValueError(f"调用匹配状态无效：{api_id}")
-                for value in (caller, service):
-                    if value not in {"无", "UNKNOWN"}:
-                        self.core.verify_anchors(value, self.config, self._anchor_cache, api_id, sources)
-                if status == "已匹配" and (caller in {"无", "UNKNOWN"} or service in {"无", "UNKNOWN"}):
-                    raise ValueError(f"已匹配须有调用方和服务方证据：{api_id}")
+            rows = self.validate_static_matches(spec)
+            for _, _, _, _, deployment, _ in rows:
                 if deployment != "未验证":
                     self.evidence_ref(deployment, spec.module_id, kind={"deployment"}, for_publish=for_publish and spec.module_id in released_modules)
-                found.add(api_id)
-            if found != api_ids:
-                raise ValueError(f"调用匹配表须覆盖全部接口：{spec.relative}")
             for doc in self.module_docs(spec.module_id):
                 if doc.doc_type == "api_catalog" and doc.publishable:
                     if self.core.table_rows(doc.body, "## 调用匹配", MATCH_HEADER) != rows:
@@ -846,11 +859,17 @@ class Governance:
             raise ValueError(f"模块发布包缺少 {sorted(required - {doc.doc_type for doc in candidates})}；请核对 full/compact profile")
         chosen = {doc.relative for doc in candidates}
         prospective = [replace(doc, meta={**doc.meta, "review_status": "reviewed" if doc.relative in chosen else "draft"}) if doc.module_id == module_id and doc.doc_type in self.core.BUSINESS | self.core.ENGINEERING else doc for doc in self.docs]
-        self.core.validate_project(prospective, self.outline, self.config, None if local else self.core.registered_adapter_entries(self.config),
+        adapter_entries = None
+        if not local:
+            adapter_entries = self._adapter_entries
+            if adapter_entries is _ADAPTER_ENTRIES_UNSET:
+                adapter_entries = self.core.registered_adapter_entries(self.config, anchor_cache=self._anchor_cache)
+        self.core.validate_project(prospective, self.outline, self.config, adapter_entries,
                                    local_module=module_id if local else None, anchor_cache=self._anchor_cache)
         self.core.validate_entry_coverage(spec, self.outline, required=True)
         apis, methods, cores = self.core.validate_spec_catalog(spec, self.outline, self.config, self._anchor_cache,
                                                             self.core.document_revisions(spec, self.config))
+        match_rows = self.validate_static_matches(spec) if local else None
         technical = {doc.doc_type: doc for doc in candidates if doc.doc_type in self.core.ENGINEERING}
         if technical and "implementation" not in technical:
             raise ValueError("研发发布包缺少技术实现导航")
@@ -864,8 +883,10 @@ class Governance:
             if doc.doc_type in {"api_catalog", "method_catalog"}:
                 self.core.validate_catalog(doc, apis if doc.doc_type == "api_catalog" else methods, cores, self.config,
                                            self._anchor_cache, self.core.document_revisions(spec, self.config))
-            if doc.doc_type == "api_catalog" and self.core.table_rows(doc.body, "## 调用匹配", MATCH_HEADER) != self.core.table_rows(spec.body, "## 调用匹配", MATCH_HEADER):
-                raise ValueError("接口与调用的匹配状态须与规格一致")
+            if doc.doc_type == "api_catalog":
+                expected_matches = match_rows if match_rows is not None else self.core.table_rows(spec.body, "## 调用匹配", MATCH_HEADER)
+                if self.core.table_rows(doc.body, "## 调用匹配", MATCH_HEADER) != expected_matches:
+                    raise ValueError(f"{doc.relative}: 接口与调用的匹配状态须与规格一致")
         return candidates
 
     def preflight(self, module_id, files=None):
@@ -884,7 +905,7 @@ class Governance:
                                    for doc in candidates if doc.doc_type == "faq"],
             "document_content_sha256": {doc.relative.as_posix(): digest(doc.original) for doc in self.docs},
             "next_steps": ["impact", "semantic_review", "confirm-claims", "prepare", "check"],
-            "warning": "仅本模块结构预检；未检查跨模块引用目标和全局门禁，不表示已审核或可发布；正式 prepare 仍完整重验",
+            "warning": "仅本模块结构预检；已核对调用匹配静态规则和跨模块引用归属，实际跨模块目标、部署证据及全局门槛由正式 prepare 检查",
         }
 
     def prepare(self, module_id, business_topics, business_unknowns, business_keywords,
