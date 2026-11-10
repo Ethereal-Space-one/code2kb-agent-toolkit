@@ -49,6 +49,17 @@ The evaluated retrieval extension has its own audit path; consumers who split ba
 
 <br>
 
+## Install as a DeepSeek Harness plugin
+
+This repository is also published as the DeepSeek Harness plugin **`code2kb-dsh`** (npm), which bundles the full skill guidance and the `code2kb` CLI together:
+
+- **GUI**: DeepSeek Harness **Plugins** page → Install → enter `code2kb-dsh`; or search Code2KB in the Discover tab of a community index.
+- **CLI**: `dsh plugin --profile desktop add code2kb-dsh`
+
+After installation, in a new session just ask the agent to "use the code2kb skill" to extract knowledge from source code: the registered `code2kb` skill provides the bundled tool paths and the complete workflow, with no separate pip install (running the CLI still requires Python 3.9+ and Git).
+
+<br>
+
 ## Quick start
 
 Requires **Git, Python 3.9+**, and a coding agent that can read local repositories. Mutating commands require `fcntl` file locking on platforms such as Linux and macOS; other platforms can run read-only checks.

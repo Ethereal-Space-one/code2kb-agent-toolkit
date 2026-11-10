@@ -1,0 +1,4 @@
+- insert:
+    - id: code2kb
+      # Must be the published package name — the loader imports this specifier.
+      name: 'code2kb-dsh'

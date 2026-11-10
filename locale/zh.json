@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Code2KB 代码知识提取",
+    "description": "内置 Code2KB Agent Toolkit：从固定源码版本提取带证据的业务与研发知识，经检查、审核后发布可检索的知识库。",
+    "detail": "README.md"
+  }
+}
