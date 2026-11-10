@@ -17,8 +17,9 @@ import subprocess
 import sys
 
 try:
-    from . import run_state
+    from . import retrieval_audit, run_state
 except ImportError:
+    import retrieval_audit
     import run_state
 
 
@@ -27,6 +28,14 @@ RUN_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{2,119}\Z")
 STATES = {"pending", "running", "waiting_review", "blocked", "failed", "completed", "cancelled"}
 EXTERNAL = {"writer", "business_intent", "reviewer", "checkpoint", "approval", "commit_inputs", "publish"}
 AUTOMATED = {"inventory", "confirm_claims", "prepare", "audit"}
+_READ_ONLY_TASKS = {"inventory", "audit"}
+
+
+class _TaskCommandFailed(ValueError):
+    def __init__(self, message: str, output: str, diagnostics: str):
+        super().__init__(message)
+        self.output = output
+        self.diagnostics = diagnostics.splitlines()
 
 
 def _now() -> str:
@@ -323,9 +332,32 @@ def _allowed(path: str, patterns: list[str]) -> bool:
     return any(path.startswith(pattern) if pattern.endswith("/") else path == pattern for pattern in patterns)
 
 
+def _run_task_command(project: Path, command: str, *options: str, message: str = "任务命令未通过") -> str:
+    try:
+        from . import knowledge as cli
+    except ImportError:
+        import knowledge as cli
+    output, diagnostic = io.StringIO(), io.StringIO()
+    prior_argv = sys.argv
+    try:
+        sys.argv = ["knowledge.py", command, "--project-root", str(project), *options]
+        with contextlib.redirect_stdout(output), contextlib.redirect_stderr(diagnostic):
+            try:
+                return_code = cli._main()
+            except SystemExit as exc:
+                return_code = exc.code if isinstance(exc.code, int) else 1
+    finally:
+        sys.argv = prior_argv
+    if return_code:
+        raise _TaskCommandFailed(message, output.getvalue(), diagnostic.getvalue())
+    return output.getvalue()
+
+
 def _verify(project: Path, record: dict, task: dict) -> None:
     kind, module = task["kind"], task["module_id"]
-    if kind in {"inventory", "prepare"}:
+    if kind == "inventory":
+        _run_task_command(project, "check", message="知识项目 check 未通过，任务不能标为完成")
+    if kind == "prepare":
         result = subprocess.run([sys.executable, str(Path(__file__).with_name("knowledge.py")), "check", "--project-root", str(project)], capture_output=True)
         if result.returncode:
             raise ValueError("知识项目 check 未通过，任务不能标为完成")
@@ -368,24 +400,18 @@ def _verify(project: Path, record: dict, task: dict) -> None:
         if any(line[3:] and not line[3:].startswith(".code2kb/") for line in status.splitlines()):
             raise ValueError("知识项目仍有未提交的文件变化")
     if kind in {"publish", "audit"}:
-        pointer = project / "发布" / "当前版本.json"
-        if not pointer.is_file() or json.loads(pointer.read_text(encoding="utf-8")).get("release_id") != record["release_id"]:
+        report = _run_task_command(project, "audit-release", message="当前发布审计未通过")
+        if json.loads(report)["release_id"] != record["release_id"]:
             raise ValueError("当前发布版本与运行账本不一致")
-        result = subprocess.run([sys.executable, str(Path(__file__).with_name("knowledge.py")), "audit-release", "--project-root", str(project)], capture_output=True)
-        if result.returncode:
-            raise ValueError("当前发布审计未通过")
+        # audit-release also verifies any relation artifacts bound to the current release.
         if record["retrieval_suite"]:
             suite = Path(record["retrieval_suite"])
             if not suite.is_file() or _digest(suite.read_bytes()) != record["retrieval_suite_sha256"]:
                 raise ValueError("检索评测套件与运行基线不一致")
-            retrieval = subprocess.run([sys.executable, str(Path(__file__).with_name("knowledge.py")), "retrieval-audit", "--project-root", str(project), "--release-id", record["release_id"]], capture_output=True)
-            if retrieval.returncode:
-                raise ValueError("检索扩展审计未通过")
-        relation_pointer = project / "发布" / "当前关系版本.json"
-        if relation_pointer.is_file() and json.loads(relation_pointer.read_text(encoding="utf-8")).get("release_id") == record["release_id"]:
-            relation = subprocess.run([sys.executable, str(Path(__file__).with_name("knowledge.py")), "relation-audit", "--project-root", str(project), "--release-id", record["release_id"]], capture_output=True)
-            if relation.returncode:
-                raise ValueError("关系扩展审计未通过")
+            try:
+                retrieval_audit.audit_in_release(project / "发布", record["release_id"])
+            except (OSError, ValueError, KeyError, TypeError, AttributeError, IndexError) as exc:
+                raise ValueError("检索扩展审计未通过") from exc
 
 
 def complete(project: Path, run_id: str, task_id: str, actor: str, note: str) -> dict:
@@ -395,6 +421,10 @@ def complete(project: Path, run_id: str, task_id: str, actor: str, note: str) ->
         raise ValueError("任务未处于运行中")
     if task["kind"] in {"writer", "business_intent", "reviewer", "checkpoint", "approval", "publish"} and (not actor.strip() or not note.strip()):
         raise ValueError("此任务须记录执行者与实际检查说明；账本记录不构成批准")
+    read_only = task["kind"] in _READ_ONLY_TASKS
+    if read_only:
+        # Include changes during the sole read-only check in the write-set comparison.
+        _verify(project, record, task)
     current = _paths(project)
     changed = _changed(task["before_files"], current)
     outside = [path for path in changed if not _allowed(path, task["allowed_write_set"])]
@@ -403,7 +433,8 @@ def complete(project: Path, run_id: str, task_id: str, actor: str, note: str) ->
         task["blocked_reason"] = "write_set"
         _save(project, record)
         raise ValueError(f"任务写入超出允许范围：{outside[:5]}")
-    _verify(project, record, task)
+    if not read_only:
+        _verify(project, record, task)
     task.update(status="completed", completed_at=_now(), actor=actor or "code2kb-cli",
                 note_digest=_digest(note.encode("utf-8")) if note else None,
                 git_head_after=_git(project, "rev-parse", "HEAD"), changed_files=changed,
@@ -423,31 +454,14 @@ def execute(project: Path, run_id: str, task_id: str) -> dict:
     if task is None or task["task_id"] != task_id or task["kind"] not in AUTOMATED:
         raise ValueError("只有当前确定性任务可由执行器运行")
     with run_state.project_lock(project):
-        begin(project, run_id, task_id)
-        kind = task["kind"]
-        arguments = ["knowledge.py", {"inventory": "check", "confirm_claims": "confirm-claims",
-                                      "prepare": "prepare", "audit": "audit-release"}[kind]]
-        if kind in {"confirm_claims", "prepare"}:
-            arguments += ["--module-id", task["module_id"]]
-        if kind == "prepare":
-            arguments += ["--auto-retrieval-metadata", "--refresh"]
-        arguments += ["--project-root", str(project)]
+        task = begin(project, run_id, task_id)
         try:
-            from . import knowledge as cli
-        except ImportError:
-            import knowledge as cli
-        output, diagnostic = io.StringIO(), io.StringIO()
-        prior_argv = sys.argv
-        try:
-            sys.argv = arguments
-            with contextlib.redirect_stdout(output), contextlib.redirect_stderr(diagnostic):
-                try:
-                    return_code = cli._main()
-                except SystemExit as exc:
-                    return_code = exc.code if isinstance(exc.code, int) else 1
-        finally:
-            sys.argv = prior_argv
-        if return_code:
+            if task["kind"] == "confirm_claims":
+                _run_task_command(project, "confirm-claims", "--module-id", task["module_id"])
+            elif task["kind"] == "prepare":
+                _run_task_command(project, "prepare", "--module-id", task["module_id"], "--auto-retrieval-metadata", "--refresh")
+            completed = complete(project, run_id, task_id, "code2kb-cli", "")
+        except _TaskCommandFailed as exc:
             record = load(project, run_id)
             current = _next(record)
             if current is None or current["task_id"] != task_id:
@@ -455,11 +469,10 @@ def execute(project: Path, run_id: str, task_id: str) -> dict:
             pending = run_state.pending_transactions(project)
             current["status"] = "blocked" if pending else "failed"
             current["blocked_reason"] = "transaction" if pending else None
-            current["result_sha256"] = _digest(output.getvalue().encode("utf-8"))
+            current["result_sha256"] = _digest(exc.output.encode("utf-8"))
             _save(project, record)
             return {"run_id": run_id, "task_id": task_id, "status": "failed",
-                    "error_code": "E_TASK_COMMAND_FAILED", "diagnostics": diagnostic.getvalue().splitlines()}
-        completed = complete(project, run_id, task_id, "code2kb-cli", "")
+                    "error_code": "E_TASK_COMMAND_FAILED", "diagnostics": exc.diagnostics}
     return {"run_id": run_id, "task_id": task_id, "status": "completed", "next_task": completed["next_task"]}
 
 

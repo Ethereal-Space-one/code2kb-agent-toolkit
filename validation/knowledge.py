@@ -909,7 +909,9 @@ def intent_counts(docs: list[Document], config: dict) -> dict[str, int]:
     return counts
 
 
-def validate_project(docs: list[Document], outline: Outline, config: dict, adapter_entries: set[str] | None, *, for_publish: bool = False, entry_coverage: bool = True, local_module: str | None = None) -> list[Document]:
+def validate_project(docs: list[Document], outline: Outline, config: dict, adapter_entries: set[str] | None, *,
+                     for_publish: bool = False, entry_coverage: bool = True, local_module: str | None = None,
+                     anchor_cache: dict[tuple[str, str], list[str]] | None = None) -> list[Document]:
     language = content_language.declared(config)
     for doc in docs:
         if doc.doc_type in BUSINESS | ENGINEERING and doc.meta.get("applicability") == "current" and content_language.declared(doc.meta) != language:
@@ -930,7 +932,7 @@ def validate_project(docs: list[Document], outline: Outline, config: dict, adapt
             raise KnowledgeError(f"盘点覆盖说明未交代配置要求的入口类别：{missing_terms}")
     if any(doc.module_id for doc in docs) and outline.meta["inventory_status"] != "complete":
         raise KnowledgeError("完整功能大纲尚未通过自检；先完成入口盘点并标记 inventory_status: complete，再写模块文件")
-    cache: dict[tuple[str, str], list[str]] = {}
+    cache = {} if anchor_cache is None else anchor_cache
     for entry in outline.entries:
         if local_module and entry[3] != local_module:
             continue
@@ -1536,8 +1538,10 @@ def _main() -> int:
         adapter_entries = registered_adapter_entries(config)
         preparing = args.action in {"impact", "confirm-claims", "prepare", "approve", "policy-review", "evidence-pack", "verifier-calibrate"}
         validation_docs = [replace(doc, meta={**doc.meta, "review_status": "draft"}) if preparing and doc.doc_type in BUSINESS | ENGINEERING else doc for doc in docs]
-        selected = validate_project(validation_docs, outline, config, adapter_entries, for_publish=args.action == "publish", entry_coverage=args.action != "impact")
-        governance = Governance(project, source, config, docs, outline, sys.modules[__name__])
+        anchor_cache: dict[tuple[str, str], list[str]] = {}
+        selected = validate_project(validation_docs, outline, config, adapter_entries, for_publish=args.action == "publish",
+                                    entry_coverage=args.action != "impact", anchor_cache=anchor_cache)
+        governance = Governance(project, source, config, docs, outline, sys.modules[__name__], anchor_cache=anchor_cache)
         audiences = governance.audiences()
         governance.read_evidence()
         governance.validate_evidence(for_publish=args.action == "publish")

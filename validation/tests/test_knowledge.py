@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from contextlib import redirect_stdout
+import io
 import json
 import os
 from pathlib import Path
@@ -8,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "knowledge.py"
@@ -187,6 +190,16 @@ class KnowledgeTests(unittest.TestCase):
             capture_output=True,
             env=env,
         )
+
+    def test_check_shares_pinned_reads_with_call_matching(self) -> None:
+        arguments = ["knowledge.py", "check", "--project-root", str(self.project)]
+        with patch.object(sys, "argv", arguments), patch.object(subprocess, "run", wraps=subprocess.run) as git:
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(core._main(), 0)
+        commands = [call.args[0] for call in git.call_args_list]
+        for repo in self.repos.values():
+            expected = ["git", "-C", repo["path"], "show", f"{repo['commit']}:dummy.txt"]
+            self.assertEqual(commands.count(expected), 1, expected)
 
     def test_business_source_rejects_repository_url_without_technical_label(self):
         overview = self.module / "模块概览.md"
