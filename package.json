@@ -1,0 +1,71 @@
+{
+  "name": "code2kb-dsh",
+  "version": "2.1.0",
+  "description": "DeepSeek Harness plugin that ships the Code2KB Agent Toolkit: extract evidence-checked business and engineering knowledge from pinned source revisions, then validate and publish a searchable knowledge base.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "index.mjs",
+  "exports": {
+    ".": "./index.mjs",
+    "./package.json": "./package.json",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "index.mjs",
+    "cordis.patch.yml",
+    "dsh/",
+    "locale/",
+    "skills/",
+    "validation/",
+    "templates/",
+    "spec/",
+    "docs/",
+    "conformance/",
+    "adapters/",
+    "hosts/",
+    "examples/",
+    "assets/",
+    "VERSION",
+    "LICENSE",
+    "README.md",
+    "README.en.md"
+  ],
+  "icon": "./dsh/icon.svg",
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "code2kb",
+    "knowledge-base",
+    "documentation",
+    "code-analysis",
+    "evidence"
+  ],
+  "dsh": {
+    "manifestVersion": 1,
+    "engines": {
+      "dsh": ">=0.2.2-rc.1"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.1.0",
+    "@deepseek-ai/dsh-skill": "^0.2.2-rc.1"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ethereal-Space-one/code2kb-agent-toolkit.git"
+  },
+  "homepage": "https://github.com/Ethereal-Space-one/code2kb-agent-toolkit#readme",
+  "bugs": {
+    "url": "https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

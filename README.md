@@ -49,6 +49,17 @@ AI 沿代码整理功能、流程、限制和问答；`code2kb` 检查证据记�
 
 <br>
 
+## 作为 DeepSeek Harness 插件安装
+
+本仓库同时发布为 DeepSeek Harness 插件 **`code2kb-dsh`**（npm），把整套 Skill 指引与 `code2kb` CLI 一并打包，开箱即用：
+
+- **图形界面**：DSH「插件」页 → 安装 → 输入 `code2kb-dsh`；或在「发现」页的社区索引中搜索 Code2KB。
+- **命令行**：`dsh plugin --profile desktop add code2kb-dsh`
+
+安装后，在新会话里直接让 AI「用 code2kb 技能」提取源码知识即可：插件注册的 `code2kb` 技能会提供内置工具路径与完整工作流，无需单独 pip 安装（运行 CLI 仍需要 Python 3.9+ 与 Git）。
+
+<br>
+
 ## 快速开始
 
 准备 **Git、Python 3.9+** 和能够读取本机仓库的 AI 编码助手。修改类命令需要 `fcntl` 文件锁，可在 Linux／macOS 等提供该模块的平台运行；其他平台可运行只读检查。

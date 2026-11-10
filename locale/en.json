@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Code2KB Knowledge Extraction",
+    "description": "Ships the Code2KB Agent Toolkit: extract evidence-checked business and engineering knowledge from pinned source revisions, then validate and publish a searchable knowledge base.",
+    "detail": "README.en.md"
+  }
+}

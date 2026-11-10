@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f2a4a"/>
+      <stop offset="1" stop-color="#16466f"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4fd1c5"/>
+      <stop offset="1" stop-color="#38b2ac"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="120" height="120" rx="26" fill="url(#bg)"/>
+  <!-- open book / knowledge page -->
+  <path d="M64 38c-8-6-20-9-32-8v46c12-1 24 2 32 8 8-6 20-9 32-8V30c-12-1-24 2-32 8z" fill="#ffffff" opacity="0.92"/>
+  <path d="M64 38v46" stroke="url(#accent)" stroke-width="3" stroke-linecap="round"/>
+  <!-- code brackets -->
+  <path d="M40 52l-8 8 8 8" fill="none" stroke="#16466f" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M88 52l8 8-8 8" fill="none" stroke="#16466f" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- knowledge spark -->
+  <circle cx="64" cy="60" r="4" fill="url(#accent)"/>
+  <path d="M58 70h12" stroke="#2c7a7b" stroke-width="3" stroke-linecap="round"/>
+  <path d="M61 76h6" stroke="#2c7a7b" stroke-width="3" stroke-linecap="round"/>
+</svg>
