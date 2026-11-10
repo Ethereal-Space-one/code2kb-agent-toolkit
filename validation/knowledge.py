@@ -360,15 +360,17 @@ def read_documents(source: Path, *, module_id: str | None = None) -> tuple[list[
     if not (source / "功能大纲.md").is_file():
         raise KnowledgeError("缺少知识源/功能大纲.md")
     paths = []
-    if module_id is not None:
+    requested_module = module_id
+    if requested_module is not None:
         meta, body, _ = parse_frontmatter(source / "功能大纲.md")
         inventory = parse_outline(body, meta)
         if module_id not in inventory.modules:
             raise KnowledgeError(f"模块未在功能大纲登记：{module_id}")
         domain, module, _ = inventory.modules[module_id]
         relative_root = Path(domain, module)
-        if len(relative_root.parts) != 2 or not safe_repo_path(relative_root.as_posix()):
-            raise KnowledgeError("模块目录必须是安全的两级相对路径")
+        if any(not safe_repo_path(part) or Path(part).parts != (part,) or part.startswith(".")
+               for part in (domain, module)):
+            raise KnowledgeError(f"{module_id}: 模块目录必须是安全的两级相对路径")
         paths = [source / "功能大纲.md", *sorted((source / relative_root).rglob("*.md"))]
     else:
         paths = sorted(source.rglob("*.md"))
@@ -402,6 +404,8 @@ def read_documents(source: Path, *, module_id: str | None = None) -> tuple[list[
         module_id = meta.get("module_id") if domain else None
         if domain and (not module_id or not re.fullmatch(r"[a-z][a-z0-9_.-]*", module_id)):
             raise KnowledgeError(f"{relative}: 缺少稳定 module_id")
+        if requested_module is not None and domain and module_id != requested_module:
+            raise KnowledgeError(f"{relative}: module_id 须与预检模块一致：{requested_module}")
         if len(parts) == 4 and not meta.get("scene_id"):
             raise KnowledgeError(f"{relative}: 场景文件需要 scene_id")
         if meta["review_status"] == "reviewed":
@@ -992,7 +996,9 @@ def validate_project(docs: list[Document], outline: Outline, config: dict, adapt
             for match in FACT_REF.finditer(technical_doc.body):
                 target = match.group("module") or module_id
                 if local_module and target != local_module:
-                    continue  # Explicitly deferred to the full project check.
+                    if target not in outline.modules:
+                        raise KnowledgeError(f"{technical_doc.relative}: 引用的模块未在功能大纲登记：{match.group(0)}")
+                    continue  # Defer checking the registered module's facts.
                 if match.group("fact") not in facts_by_module.get(target, set()):
                     raise KnowledgeError(f"{technical_doc.relative}: 事实编号未在 {target} 的规格中定义：{match.group(0)}")
         if ("api_catalog" in technical or "method_catalog" in technical) and "implementation" not in technical:
@@ -1012,6 +1018,7 @@ def validate_project(docs: list[Document], outline: Outline, config: dict, adapt
             validate_catalog(technical["method_catalog"], method_rows, core_ids, config, cache, sources)
     selected = [doc for doc in docs if doc.publishable]
     selected_paths = {doc.relative for doc in selected}
+    module_dirs = {record[:2] for record in outline.modules.values()} if local_module else set()
     for doc in selected:
         without_links = LINK.sub("", doc.body)
         reference = PLAIN_MD_REF.search(without_links)
@@ -1024,6 +1031,8 @@ def validate_project(docs: list[Document], outline: Outline, config: dict, adapt
             local = unquote(target.split("#", 1)[0])
             if not local.endswith(".md"):
                 continue
+            if local_module and (Path(local).is_absolute() or "\\" in local or re.match(r"^[A-Za-z]:", local)):
+                raise KnowledgeError(f"{doc.relative}: 链接须为知识源内相对路径：{target}")
             joined = Path(*((doc.relative.parent / local).parts))
             normalized = Path(*[p for p in joined.parts if p != "."])
             # Resolve relative path segments without following filesystem links.
@@ -1035,11 +1044,12 @@ def validate_project(docs: list[Document], outline: Outline, config: dict, adapt
                     stack.pop()
                 else:
                     stack.append(part)
-            if local_module:
-                root = Path(doc.domain, doc.module)
-                if not Path(*stack).is_relative_to(root):
-                    continue  # Cross-module targets are outside preflight's scope.
-            if Path(*stack) not in selected_paths:
+            target_path = Path(*stack)
+            if local_module and tuple(stack[:2]) != (doc.domain, doc.module):
+                if target_path == Path("术语表.md") or (len(stack) >= 3 and tuple(stack[:2]) in module_dirs):
+                    continue  # Defer checking the registered module or shared document.
+                raise KnowledgeError(f"{doc.relative}: 链接目标未归入已登记模块或共享文档：{target}")
+            if target_path not in selected_paths:
                 raise KnowledgeError(f"{doc.relative}: 链接目标未发布：{target}")
     return selected
 
