@@ -10,6 +10,7 @@ import unittest
 from unittest.mock import patch
 
 from validation import knowledge as core
+from validation import workflow
 from validation.evidence_snapshot import snapshot
 from validation.governance import Governance
 from validation.fact_render import normalized_facts, render_mapped
@@ -481,6 +482,17 @@ class RelationGovernanceTests(unittest.TestCase):
         topic = manifest["modules"]["example.order.query"]["topics"][0]
         self.assertTrue(topic["unit_ids"])
         self.assertEqual(self.example.run_cli("audit-release", "--release-id", "relation-with-retrieval").returncode, 0)
+        record = {"release_id": "relation-with-retrieval", "retrieval_suite": str(suite_path),
+                  "retrieval_suite_sha256": digest(suite_path.read_bytes())}
+        task = {"kind": "audit", "module_id": None}
+        with patch.object(Governance, "audit_release", autospec=True, side_effect=Governance.audit_release) as audit:
+            workflow._verify(self.example.project, record, task)
+        self.assertEqual(audit.call_count, 1)
+        retrieval = self.example.project / "发布/检索版/业务"
+        unit = next(retrieval.rglob("*.md"))
+        unit.write_bytes(unit.read_bytes() + b"\nExtra content\n")
+        with self.assertRaisesRegex(ValueError, "检索扩展审计未通过"):
+            workflow._verify(self.example.project, record, task)
 
     def test_missing_pointer_and_malformed_frozen_mapping_fail_audit(self) -> None:
         self.approve_mapping()

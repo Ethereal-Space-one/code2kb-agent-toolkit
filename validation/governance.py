@@ -166,10 +166,11 @@ def strict_json(path: Path, allowed: set[str], label: str, optional: frozenset =
 
 
 class Governance:
-    def __init__(self, project, source, config, docs, outline, core):
+    def __init__(self, project, source, config, docs, outline, core, *, anchor_cache=None):
         self.project, self.source, self.config = project, source, config
         self.docs, self.outline, self.core = docs, outline, core
         self.by_path = {doc.relative.as_posix(): doc for doc in docs}
+        self._anchor_cache = {} if anchor_cache is None else anchor_cache
         self.evidence = {}
         self.evidence_dependencies = {}
         self.policy_inputs = set()
@@ -657,7 +658,6 @@ class Governance:
             }
 
     def validate_matches(self, for_publish=False):
-        cache = {}
         released_modules = {doc.module_id for doc in self.docs if doc.publishable}
         for spec in (doc for doc in self.docs if doc.doc_type == "spec"):
             api_ids = {row[0] for row in self.core.table_rows(spec.body, "## 接口契约", "| api_id | 接口标识 | 调用方 | 服务入口 | 主处理方法 | 证据 |")}
@@ -669,7 +669,7 @@ class Governance:
                     raise ValueError(f"调用匹配状态无效：{api_id}")
                 for value in (caller, service):
                     if value not in {"无", "UNKNOWN"}:
-                        self.core.verify_anchors(value, self.config, cache, api_id, sources)
+                        self.core.verify_anchors(value, self.config, self._anchor_cache, api_id, sources)
                 if status == "已匹配" and (caller in {"无", "UNKNOWN"} or service in {"无", "UNKNOWN"}):
                     raise ValueError(f"已匹配须有调用方和服务方证据：{api_id}")
                 if deployment != "未验证":
@@ -846,9 +846,11 @@ class Governance:
             raise ValueError(f"模块发布包缺少 {sorted(required - {doc.doc_type for doc in candidates})}；请核对 full/compact profile")
         chosen = {doc.relative for doc in candidates}
         prospective = [replace(doc, meta={**doc.meta, "review_status": "reviewed" if doc.relative in chosen else "draft"}) if doc.module_id == module_id and doc.doc_type in self.core.BUSINESS | self.core.ENGINEERING else doc for doc in self.docs]
-        self.core.validate_project(prospective, self.outline, self.config, None if local else self.core.registered_adapter_entries(self.config), local_module=module_id if local else None)
+        self.core.validate_project(prospective, self.outline, self.config, None if local else self.core.registered_adapter_entries(self.config),
+                                   local_module=module_id if local else None, anchor_cache=self._anchor_cache)
         self.core.validate_entry_coverage(spec, self.outline, required=True)
-        apis, methods, cores = self.core.validate_spec_catalog(spec, self.outline, self.config, {}, self.core.document_revisions(spec, self.config))
+        apis, methods, cores = self.core.validate_spec_catalog(spec, self.outline, self.config, self._anchor_cache,
+                                                            self.core.document_revisions(spec, self.config))
         technical = {doc.doc_type: doc for doc in candidates if doc.doc_type in self.core.ENGINEERING}
         if technical and "implementation" not in technical:
             raise ValueError("研发发布包缺少技术实现导航")
@@ -860,7 +862,8 @@ class Governance:
             if doc.meta.get("runtime_status") not in {"source_only", "runtime_verified", "verified_deployment"}:
                 raise ValueError("研发文件缺少 runtime_status")
             if doc.doc_type in {"api_catalog", "method_catalog"}:
-                self.core.validate_catalog(doc, apis if doc.doc_type == "api_catalog" else methods, cores, self.config, {}, self.core.document_revisions(spec, self.config))
+                self.core.validate_catalog(doc, apis if doc.doc_type == "api_catalog" else methods, cores, self.config,
+                                           self._anchor_cache, self.core.document_revisions(spec, self.config))
             if doc.doc_type == "api_catalog" and self.core.table_rows(doc.body, "## 调用匹配", MATCH_HEADER) != self.core.table_rows(spec.body, "## 调用匹配", MATCH_HEADER):
                 raise ValueError("接口与调用的匹配状态须与规格一致")
         return candidates

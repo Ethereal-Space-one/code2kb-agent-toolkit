@@ -119,12 +119,39 @@ class WorkflowTests(fixture.unittest.TestCase):
             attempts.append(second)
             return original()
 
-        with patch.object(knowledge, "_main", side_effect=competing_command):
+        with patch.object(knowledge, "_main", side_effect=competing_command), patch.object(subprocess, "run", wraps=subprocess.run) as child:
             result = workflow.execute(self.project, "sample-001", "inventory")
         self.assertEqual(result["status"], "completed")
         self.assertEqual(len(attempts), 1)
         self.assertNotEqual(attempts[0].returncode, 0)
         self.assertIn("另一修改任务", attempts[0].stderr)
+        self.assertFalse(any("check" in call.args[0] for call in child.call_args_list))
+
+    def test_inventory_checks_for_external_writes_during_validation(self):
+        self.create_run()
+        original = knowledge._main
+
+        def check_then_edit():
+            code = original()
+            fixture.write(self.project / "external-edit.md", "simulated editor write")
+            return code
+
+        with patch.object(knowledge, "_main", side_effect=check_then_edit):
+            with self.assertRaisesRegex(ValueError, "超出允许范围"):
+                workflow.execute(self.project, "sample-001", "inventory")
+        status = workflow.inspect(self.project, workflow.load(self.project, "sample-001"))
+        self.assertEqual(status["run_status"], "blocked")
+
+    def test_inventory_validation_failure_keeps_task_diagnostics(self):
+        self.create_run()
+        fixture.write(self.module / "模块概览.md", "invalid front matter")
+        response = self.run_cli("run-execute", "--run-id", "sample-001", "--task-id", "inventory")
+        self.assertNotEqual(response.returncode, 0)
+        result = json.loads(response.stdout)
+        self.assertEqual(result["error_code"], "E_TASK_COMMAND_FAILED")
+        self.assertTrue(result["diagnostics"])
+        status = workflow.inspect(self.project, workflow.load(self.project, "sample-001"))
+        self.assertEqual(status["run_status"], "failed")
 
     def test_json_response_reports_recovery_and_argument_errors(self):
         invalid = self.run_cli("run-create", "--run-id", "bad-001", "--release-id", "release-001", "--output", "json")
@@ -240,8 +267,12 @@ class WorkflowTests(fixture.unittest.TestCase):
         resumed_publish = self.run_cli("run-resume", "--run-id", "sample-001")
         self.assertEqual(resumed_publish.returncode, 0, resumed_publish.stderr)
         self.assertEqual(json.loads(resumed_publish.stdout)["next_task"]["kind"], "audit")
-        audited = self.run_cli("run-execute", "--run-id", "sample-001", "--task-id", "audit")
-        self.assertEqual(audited.returncode, 0, audited.stderr)
+        with patch.object(knowledge.Governance, "audit_release", autospec=True, side_effect=knowledge.Governance.audit_release) as audit:
+            with patch.object(subprocess, "run", wraps=subprocess.run) as child:
+                audited = workflow.execute(self.project, "sample-001", "audit")
+        self.assertEqual(audited["status"], "completed")
+        self.assertEqual(audit.call_count, 1)
+        self.assertFalse(any("audit-release" in call.args[0] for call in child.call_args_list))
         self.assertEqual(json.loads(self.run_cli("run-status", "--run-id", "sample-001").stdout)["run_status"], "completed")
 
 

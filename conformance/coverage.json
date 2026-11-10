@@ -143,7 +143,8 @@
       "validation/tests/test_governance.py::GovernanceTests.test_failed_post_install_audit_restores_previous_snapshot"
     ],
     "C2KB-RELEASE-005": [
-      "validation/tests/test_governance.py::GovernanceTests.test_published_file_mutation_is_detected"
+      "validation/tests/test_governance.py::GovernanceTests.test_published_file_mutation_is_detected",
+      "validation/tests/test_workflow.py::WorkflowTests.test_approval_after_prepare_resumes_without_refresh"
     ],
     "C2KB-REVIEW-001": [
       "validation/tests/test_governance.py::GovernanceTests.test_changed_body_invalidates_approval"
