@@ -1,0 +1,39 @@
+name: Publish npm (with provenance)
+
+# Publishes the npm package `code2kb-dsh` with SLSA provenance.
+# Push a `v*` tag (or run manually) after bumping VERSION and package.json
+# version together; the version guard fails the run when they disagree.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # OIDC for npm provenance attestation
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version guard (VERSION must equal package.json version)
+        run: |
+          test -f VERSION
+          test "$(cat VERSION)" = "$(node -p 'require("./package.json").version')"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Verify tag matches version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: test "v$(cat VERSION)" = "${GITHUB_REF#refs/tags/}"
+
+      - name: Publish
+        run: npm publish --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
