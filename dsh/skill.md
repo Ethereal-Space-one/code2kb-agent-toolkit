@@ -6,8 +6,8 @@ base — feature descriptions, flows, rules, limits, and Q&A that a bot can
 retrieve — or when they ask to audit, review, or publish an existing Code2KB
 knowledge project.
 
-This plugin bundles the complete **Code2KB Agent Toolkit (2.1.0)**. Everything
-below runs from the bundled copy; nothing needs to be installed.
+This plugin bundles Code2KB Agent Toolkit. Use Git and Python 3.9+ with the
+bundled copy.
 
 ## Bundled toolkit root
 
@@ -50,19 +50,18 @@ Key paths inside it:
 
 ## Bundled CLI
 
-Run with Python 3.9+ (macOS/Linux: `python3`; Windows: `python`). No install
-step — the package is already here:
-
-```bash
-python3 "__TOOLKIT_DIR__/validation/knowledge.py" <action> --project-root <knowledge-project>
-```
+Run the bundled `validation/knowledge.py` with Python 3.9+ (macOS/Linux:
+`python3`; Windows: `python`). Pass its absolute path, the action, and
+`--project-root` followed by the knowledge project path as separate arguments.
+When using a shell, quote the paths for that shell. Commands that write project
+files require a platform with `fcntl` file locking.
 
 Actions include: `check`, `preflight`, `impact`, `confirm-claims`, `prepare`,
 `approve`, `policy-review`, `publish`, `audit-release`, `analyze-candidates`,
 `evidence-snapshot`, `render-facts`, `preview-upgrade`, `relation-audit`,
 `retrieval-build`, `retrieval-evaluate`, `evidence-pack`,
-`verifier-calibrate`, and run management actions. Run
-`python3 "__TOOLKIT_DIR__/validation/knowledge.py" --help` for details.
+`verifier-calibrate`, and run management actions. Pass `--help` to the
+bundled CLI for details.
 
 ## Guardrails
 

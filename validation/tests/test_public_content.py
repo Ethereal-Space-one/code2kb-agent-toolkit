@@ -40,7 +40,7 @@ class PublicContentTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             marker = "/" + "Users/example/private-source"
-            suffixes = (".java", ".ts", ".tsx", ".vue", ".js", ".jsx", ".php", ".go", ".rs", ".sh", ".sql", ".html", ".css")
+            suffixes = (".java", ".ts", ".tsx", ".vue", ".js", ".jsx", ".mjs", ".cjs", ".svg", ".php", ".go", ".rs", ".sh", ".sql", ".html", ".css")
             for suffix in suffixes:
                 (root / f"sample{suffix}").write_text(f"// {marker}\n", encoding="utf-8")
             with patch.object(public_content, "ROOT", root), patch.object(

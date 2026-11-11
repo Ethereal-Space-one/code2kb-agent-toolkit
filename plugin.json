@@ -1,0 +1,30 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "code2kb",
+  "version": "2.1.0",
+  "description": "Extract evidence-backed business and engineering knowledge from pinned source revisions.",
+  "author": {
+    "name": "Ethereal-Space-one"
+  },
+  "repository": "https://github.com/Ethereal-Space-one/code2kb-agent-toolkit",
+  "license": "Apache-2.0",
+  "extensions": {
+    "com.openai": {
+      "requires_local_executor": true,
+      "interface": {
+        "displayName": "Code2KB",
+        "shortDescription": "Build a knowledge base from source code",
+        "longDescription": "Extract business and engineering knowledge, review the evidence and publish searchable knowledge files from a local project.",
+        "developerName": "Ethereal-Space-one",
+        "category": "Developer Tools",
+        "capabilities": [
+          "Read",
+          "Write"
+        ],
+        "websiteURL": "https://github.com/Ethereal-Space-one/code2kb-agent-toolkit",
+        "composerIcon": "./assets/icon.png",
+        "logo": "./assets/icon.png"
+      }
+    }
+  }
+}

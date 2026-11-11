@@ -11,26 +11,7 @@
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./locale/*.json": "./locale/*.json"
   },
-  "files": [
-    "index.mjs",
-    "cordis.patch.yml",
-    "dsh/",
-    "locale/",
-    "skills/",
-    "validation/",
-    "templates/",
-    "spec/",
-    "docs/",
-    "conformance/",
-    "adapters/",
-    "hosts/",
-    "examples/",
-    "assets/",
-    "VERSION",
-    "LICENSE",
-    "README.md",
-    "README.en.md"
-  ],
+  "files": [],
   "icon": "./dsh/icon.svg",
   "keywords": [
     "dsh-plugin",
@@ -67,5 +48,6 @@
   },
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "private": true
 }
