@@ -11,7 +11,7 @@ import re
 ROOT = Path(__file__).resolve().parents[1]
 TEXT_SUFFIXES = {
     ".md", ".py", ".json", ".yml", ".yaml", ".toml", ".txt", "",
-    ".java", ".ts", ".tsx", ".vue", ".js", ".jsx", ".php", ".go", ".rs",
+    ".java", ".ts", ".tsx", ".vue", ".js", ".jsx", ".mjs", ".cjs", ".svg", ".php", ".go", ".rs",
     ".rb", ".kt", ".swift", ".cs", ".c", ".h", ".cpp", ".cc", ".hpp",
     ".sh", ".bash", ".sql", ".html", ".css",
 }
@@ -46,10 +46,11 @@ def private_patterns() -> dict[str, re.Pattern[str]]:
     }
 
 
-def main() -> int:
+def main(root: Path | None = None) -> int:
+    root = ROOT if root is None else root
     failures: list[str] = []
     patterns = {**FORBIDDEN, **private_patterns()}
-    for path in sorted(ROOT.rglob("*")):
+    for path in sorted(root.rglob("*")):
         if (
             not path.is_file()
             or path == LOCAL_DENYLIST
@@ -66,7 +67,7 @@ def main() -> int:
         for line_number, line in enumerate(text.splitlines(), start=1):
             for label, pattern in patterns.items():
                 if pattern.search(line):
-                    failures.append(f"{path.relative_to(ROOT)}:{line_number}: {label}")
+                    failures.append(f"{path.relative_to(root)}:{line_number}: {label}")
     if failures:
         print("公开内容检查失败：")
         for failure in failures:

@@ -12,9 +12,10 @@ ROOT = Path(__file__).resolve().parents[1]
 LINK = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 
 
-def main() -> int:
+def main(root: Path = ROOT) -> int:
+    root = root.resolve()
     failures: list[str] = []
-    for path in sorted(ROOT.rglob("*.md")):
+    for path in sorted(root.rglob("*.md")):
         if ".git" in path.parts:
             continue
         text = path.read_text(encoding="utf-8")
@@ -23,8 +24,8 @@ def main() -> int:
             if not target or target.startswith(("http://", "https://", "mailto:")):
                 continue
             resolved = (path.parent / unquote(target)).resolve()
-            if not resolved.is_relative_to(ROOT) or not resolved.exists():
-                failures.append(f"{path.relative_to(ROOT)} -> {raw}")
+            if not resolved.is_relative_to(root) or not resolved.exists():
+                failures.append(f"{path.relative_to(root)} -> {raw}")
     if failures:
         print("发现失效或越界的 Markdown 链接：")
         for failure in failures:

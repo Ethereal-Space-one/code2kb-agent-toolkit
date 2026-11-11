@@ -20,7 +20,7 @@ const pkg = JSON.parse(readFileSync(PACKAGE_URL, "utf8"));
 export function apply(ctx) {
   const content = readFileSync(SKILL_BODY_URL, "utf8").replaceAll(
     "__TOOLKIT_DIR__",
-    TOOLKIT_DIR,
+    () => TOOLKIT_DIR,
   );
   ctx.skills.register({
     name: "code2kb",
@@ -29,7 +29,5 @@ export function apply(ctx) {
     source: `code2kb-dsh@${pkg.version} (bundled Code2KB Agent Toolkit ${pkg.version})`,
     content,
   });
-  ctx.logger.info(
-    `[code2kb] registered skill "code2kb"; bundled toolkit at ${TOOLKIT_DIR}`,
-  );
+  ctx.logger.info('[code2kb] registered skill "code2kb"');
 }

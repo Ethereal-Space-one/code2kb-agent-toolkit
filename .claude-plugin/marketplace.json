@@ -1,0 +1,14 @@
+{
+  "name": "code2kb",
+  "owner": {
+    "name": "Ethereal-Space-one"
+  },
+  "plugins": [
+    {
+      "name": "code2kb",
+      "source": "./",
+      "description": "Build and review an evidence-backed knowledge base from source code."
+    }
+  ],
+  "description": "Code2KB Agent Toolkit plugin marketplace."
+}

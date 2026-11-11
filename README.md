@@ -49,14 +49,15 @@ AI 沿代码整理功能、流程、限制和问答；`code2kb` 检查证据记�
 
 <br>
 
-## 作为 DeepSeek Harness 插件安装
+## 插件安装
 
-本仓库同时发布为 DeepSeek Harness 插件 **`code2kb-dsh`**（npm），把整套 Skill 指引与 `code2kb` CLI 一并打包，开箱即用：
+| 宿主 | 安装方式 |
+| --- | --- |
+| DeepSeek Harness | 在插件页搜索 `code2kb-dsh`，或运行 `dsh plugin --profile desktop add code2kb-dsh` |
+| Claude Code | 从含插件清单的检出启动 `claude --plugin-dir .` |
+| Codex | 从含插件清单的检出运行 `codex plugin marketplace add .`，再运行 `codex plugin add code2kb@code2kb` |
 
-- **图形界面**：DSH「插件」页 → 安装 → 输入 `code2kb-dsh`；或在「发现」页的社区索引中搜索 Code2KB。
-- **命令行**：`dsh plugin --profile desktop add code2kb-dsh`
-
-安装后，在新会话里直接让 AI「用 code2kb 技能」提取源码知识即可：插件注册的 `code2kb` 技能会提供内置工具路径与完整工作流，无需单独 pip 安装（运行 CLI 仍需要 Python 3.9+ 与 Git）。
+在新会话中请 Agent 用 Code2KB 提取源码知识。插件内置 Skill 和 CLI，运行仍需要 Git 和 Python 3.9+。参见[插件安装与打包](docs/plugin-installation.md)。
 
 <br>
 
@@ -241,7 +242,7 @@ code2kb analyze-candidates --project-root /path/to/knowledge-project \
 | 导入检索系统 | [检索契约](docs/retrieval-contract.md) |
 | 判断工具保证到哪里 | [保证范围](docs/assurance-matrix.md) |
 
-当前工程版本：`2.1.0`。查看[问答用例维护发布说明](docs/2.1.0-release-notes.md)或 [2.1.0 Release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.1.0)。
+当前工程版本：`2.2.0`。查看[插件分发发布说明](docs/2.2.0-release-notes.md)或 [2.2.0 Release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.2.0)。
 
 本项目由 Code2KB Spec 更名为 **Code2KB Agent Toolkit**，仓库和 Python 包标识统一为 `code2kb-agent-toolkit`，命令仍为 `code2kb`。
 

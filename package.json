@@ -1,6 +1,6 @@
 {
   "name": "code2kb-dsh",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "DeepSeek Harness plugin that ships the Code2KB Agent Toolkit: extract evidence-checked business and engineering knowledge from pinned source revisions, then validate and publish a searchable knowledge base.",
   "license": "Apache-2.0",
   "type": "module",
@@ -11,26 +11,7 @@
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./locale/*.json": "./locale/*.json"
   },
-  "files": [
-    "index.mjs",
-    "cordis.patch.yml",
-    "dsh/",
-    "locale/",
-    "skills/",
-    "validation/",
-    "templates/",
-    "spec/",
-    "docs/",
-    "conformance/",
-    "adapters/",
-    "hosts/",
-    "examples/",
-    "assets/",
-    "VERSION",
-    "LICENSE",
-    "README.md",
-    "README.en.md"
-  ],
+  "files": [],
   "icon": "./dsh/icon.svg",
   "keywords": [
     "dsh-plugin",
@@ -50,10 +31,6 @@
       "patch": "./cordis.patch.yml"
     }
   },
-  "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.1.0",
-    "@deepseek-ai/dsh-skill": "^0.2.2-rc.1"
-  },
   "engines": {
     "node": ">=20"
   },
@@ -67,5 +44,6 @@
   },
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "private": true
 }
