@@ -1,6 +1,6 @@
 {
   "name": "code2kb-dsh",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "DeepSeek Harness plugin that ships the Code2KB Agent Toolkit: extract evidence-checked business and engineering knowledge from pinned source revisions, then validate and publish a searchable knowledge base.",
   "license": "Apache-2.0",
   "type": "module",

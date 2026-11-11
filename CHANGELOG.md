@@ -4,6 +4,8 @@
 
 ## 未发布
 
+## [2.2.0] - 2026-11-11
+
 - 加入 Claude Code 和 Codex 插件入口，复用现有知识提取 Skill 与 CLI。
 - 插件从固定 Git 提交打包。npm 发布仅上传通过同提交 CI 和产物核验的归档，使用 Trusted Publishing。
 
