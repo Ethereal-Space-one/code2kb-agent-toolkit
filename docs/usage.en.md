@@ -131,6 +131,8 @@ code2kb retrieval-query --project-root /path/to/knowledge-project \
 
 Have the agent create the question suite using the existing [retrieval contract](retrieval-contract.md), with expected modules, required conditions/unknowns and forbidden disclosures. A failed evaluation leaves retrieval unready. The [self-authored English case](../conformance/english/README.en.md) checks actual SQLite FTS5 evidence retrieval; it does not prove final bot-answer quality.
 
+Use each hit's `source_locations` to open the matching released section or file. To trace missing evidence, run `retrieval-diagnose-context` with the retrieved candidates and the exact excerpts passed to the model. [Context diagnostics](retrieval-evaluation.md#诊断送入模型的证据) · [English release notes](2.3.0-release-notes.md#english)
+
 Import only released business knowledge into a business bot. Your external FTS/vector system retrieves text and your model composes the answer. Keep engineering content, internal specifications, this guide and agent instructions out of that corpus. Code2KB does not deploy your bot or index service.
 
 ## Literal protocol tokens

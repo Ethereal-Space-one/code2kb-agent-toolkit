@@ -15,6 +15,7 @@ from retrieval_evaluate import evaluate_data, load_suite
 from retrieval_build import build_in_release, coverage_report, index_sections, metadata_candidates
 from retrieval_model import RetrievalError, digest, json_bytes, read_unit
 from retrieval_profile import compare
+from retrieval_query import source_locations
 
 
 def suite(*, required=None, unknown=None, forbidden=None):
@@ -102,8 +103,23 @@ class RetrievalTests(unittest.TestCase):
         release = self.build()
         result = self.fixture.run_cli("retrieval-evaluate", "--release-id", "retrieval-test", "--suite", str(self.suite_path))
         self.assertEqual(result.returncode, 0, result.stderr)
+        report = json.loads(result.stdout)
+        self.assertEqual(report["schema_version"], "0.2")
+        summary = report["summary"]
+        self.assertEqual((summary["module_mrr"], summary["unit_mrr"]), (1.0, None))
+        self.assertEqual((summary["module_recall_at_k"], summary["module_case_count"]), (1.0, 1))
+        self.assertEqual((summary["unit_recall_at_k"], summary["unit_case_count"]), (None, 0))
+        self.assertEqual((summary["required_phrase_coverage"], summary["required_phrase_count"]), (1.0, 1))
+        self.assertEqual((summary["unknown_phrase_coverage"], summary["unknown_phrase_count"]), (None, 0))
         self.assertEqual(self.fixture.run_cli("retrieval-audit", "--release-id", "retrieval-test").returncode, 0)
         markdown = release / "检索评测/retrieval-test.md"
+        rendered = markdown.read_text(encoding="utf-8")
+        self.assertIn("模块 MRR 1.000", rendered)
+        self.assertIn("目标单元 MRR 未标注", rendered)
+        self.assertIn("首个预期模块排名 1", rendered)
+        self.assertIn("首个目标单元排名 未标注", rendered)
+        self.assertIn("目标单元召回率 未测（0 道标注题）", rendered)
+        self.assertIn("未知边界覆盖率 未测（0 条标注短语）", rendered)
         original_markdown = markdown.read_bytes()
         markdown.write_bytes(original_markdown + b" ")
         self.assertIn("Markdown 报告", self.fixture.run_cli("retrieval-audit", "--release-id", "retrieval-test").stderr)
@@ -132,6 +148,9 @@ class RetrievalTests(unittest.TestCase):
             self.assertTrue((self.project / hit["unit_path"]).is_file())
             self.assertTrue(all((self.project / path).is_file() for path in hit["source_paths"]))
             self.assertTrue(all(path.startswith("发布/业务版/") for path in hit["source_paths"]))
+            self.assertEqual(hit["source_paths"], [location["path"] for location in hit["source_locations"]])
+        self.assertTrue(any(location["heading"] == "说明" and location["href"].endswith("#%E8%AF%B4%E6%98%8E")
+                            for hit in response["hits"] for location in hit["source_locations"]))
         engineering = self.fixture.run_cli("retrieval-query", "--query", "METHOD-001", "--audience", "engineering")
         self.assertEqual(engineering.returncode, 0, engineering.stderr)
         self.assertTrue(any(hit["audience"] == "engineering" for hit in json.loads(engineering.stdout)["hits"]))
@@ -139,6 +158,99 @@ class RetrievalTests(unittest.TestCase):
         unit_path = self.project / response["hits"][0]["unit_path"]
         unit_path.write_text(unit_path.read_text(encoding="utf-8") + "\n改动\n", encoding="utf-8")
         self.assertNotEqual(self.fixture.run_cli(*query_args).returncode, 0)
+
+    def test_source_locations_verify_each_file_and_fall_back_for_ambiguous_headings(self):
+        sources = {
+            "Sales/Order lookup/常见问答.md": "## Q: Can I look up any order?\n\nThis is the lookup rule.\n",
+            "Sales/Order lookup/规则与限制.md": "## 查询限制：\n\nThis is the exception.\n",
+            "Sales/Order lookup/功能与范围.md": "## 范围说明\n\nA.\n\n## 范围说明？\n\nB.\n",
+        }
+        with tempfile.TemporaryDirectory() as temp:
+            project = Path(temp).resolve()
+            hashes = {}
+            for source, body in sources.items():
+                path = project / "发布" / "业务版" / source
+                fixtures.write(path, f"---\nmodule_id: example.order.query\n---\n\n{body}")
+                hashes[source] = digest(path.read_bytes())
+            faq, rules, scope = sources
+            unit = {
+                "entry": {"source_documents": list(sources)},
+                "meta": {"source_headings": "Q: Can I look up any order? | 查询限制 | 范围说明"},
+                "body": f"# Order lookup\n\n## Sources\n\n- {faq} · Q: Can I look up any order?\n"
+                        f"- {rules} · 查询限制\n- {scope} · 范围说明\n",
+            }
+            locations = source_locations(project, "业务版", unit, hashes, {}, core)
+            self.assertEqual([location["heading"] for location in locations], ["Q: Can I look up any order?", "查询限制：", None])
+            self.assertTrue(locations[0]["href"].endswith("#q-can-i-look-up-any-order"))
+            self.assertIn("/Sales/Order%20lookup/", locations[0]["href"])
+            self.assertTrue(locations[1]["href"].endswith("#%E6%9F%A5%E8%AF%A2%E9%99%90%E5%88%B6"))
+            self.assertNotIn("#", locations[2]["href"])
+            unit["body"] = unit["body"].replace(f"- {rules} · 查询限制", f"- {rules} · 查询限制 | 范围说明")
+            self.assertIsNone(source_locations(project, "业务版", unit, hashes, {}, core)[1]["heading"])
+
+    def test_context_diagnostics_distinguish_retrieval_and_assembly_without_writing(self):
+        overview = self.fixture.module / "模块概览.md"
+        fixtures.write(overview, overview.read_text(encoding="utf-8") + "\n## 查询说明\n\n这是另一条业务说明。\n")
+        fixtures.finalize_fixture(self.project, "example.order.query")
+        self.publish()
+        release = self.build()
+        manifest = json.loads((release / "检索清单/retrieval-test.json").read_text(encoding="utf-8"))
+        unit = next(item for item in manifest["units"] if item["audience"] == "business"
+                    and "这是用户能看到的操作说明" in read_unit(self.project / item["path"])[1])
+        target = unit["unit_id"]
+        other = next(item["unit_id"] for item in manifest["units"] if item["audience"] == "business" and item != unit)
+        check = suite(unknown=["示例尚未验证"])
+        case = dict(check["cases"][0], expected_unit_ids=[target], top_k=1)
+        check["cases"] = [dict(case, case_id=case_id) for case_id in ("no-hit", "trimmed", "full")]
+        fixtures.write(self.suite_path, json.dumps(check, ensure_ascii=False))
+        results_path = self.project / "external.json"
+        contexts_path = self.project / "contexts.json"
+        results = {
+            "schema_version": "0.1", "suite_id": check["suite_id"], "retriever_id": "offline-fixture",
+            "corpus_sha256": digest(json_bytes(manifest["views"])),
+            "cases": {"no-hit": [], "trimmed": [{"unit_id": other, "score": 1}, {"unit_id": target, "score": 0.5}],
+                      "full": [{"unit_id": target, "score": 1}]},
+        }
+        contexts = {
+            "no-hit": [], "trimmed": [{"unit_id": target, "text": "这是用户能看到的"}],
+            "full": [{"unit_id": target, "text": "这是用户能看到的操作说明"}],
+        }
+        fixtures.write(results_path, json.dumps(results, ensure_ascii=False))
+        fixtures.write(contexts_path, json.dumps(contexts, ensure_ascii=False))
+        before = {path: digest(path.read_bytes()) for path in release.rglob("*") if path.is_file()}
+        args = ("retrieval-diagnose-context", "--release-id", "retrieval-test", "--suite", str(self.suite_path),
+                "--results", str(results_path), "--contexts", str(contexts_path))
+        result = self.fixture.run_cli(*args)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        rows = {row["case_id"]: row for row in json.loads(result.stdout)["cases"]}
+        self.assertEqual(rows["no-hit"]["missing_at_retrieval"]["unit_ids"], [target])
+        self.assertEqual(rows["no-hit"]["lost_during_assembly"]["unit_ids"], [])
+        self.assertEqual(rows["trimmed"]["retrieved_unit_ids"], [other, target])
+        self.assertEqual(rows["trimmed"]["context_unit_ids"], [target])
+        self.assertEqual(rows["trimmed"]["missing_at_retrieval"]["required_phrases"], [])
+        self.assertEqual(rows["trimmed"]["lost_during_assembly"]["required_phrases"], case["required_phrases"])
+        self.assertEqual(rows["trimmed"]["missing_at_retrieval"]["required_unknown_phrases"], case["required_unknown_phrases"])
+        self.assertFalse(any(rows["full"]["lost_during_assembly"].values()))
+        contexts["trimmed"] = []
+        fixtures.write(contexts_path, json.dumps(contexts, ensure_ascii=False))
+        result = self.fixture.run_cli(*args)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["cases"][1]["lost_during_assembly"]["unit_ids"], [target])
+        contexts["trimmed"] = [{"unit_id": target, "text": "这里的文字不来自任何已召回单元"}]
+        fixtures.write(contexts_path, json.dumps(contexts, ensure_ascii=False))
+        result = self.fixture.run_cli(*args)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("不属于本题已召回单元的原文", result.stderr)
+        results["cases"]["trimmed"].append({
+            "unit_id": next(item["unit_id"] for item in manifest["units"] if item["audience"] == "engineering"),
+            "score": 0,
+        })
+        fixtures.write(results_path, json.dumps(results, ensure_ascii=False))
+        result = self.fixture.run_cli(*args)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("超出受众范围", result.stderr)
+        after = {path: digest(path.read_bytes()) for path in release.rglob("*") if path.is_file()}
+        self.assertEqual(before, after)
 
     def test_audit_rejects_changed_base_or_report(self):
         self.publish()
@@ -156,9 +268,21 @@ class RetrievalTests(unittest.TestCase):
     def test_failed_gate_has_no_ready_pointer(self):
         self.publish()
         release = self.build()
-        fixtures.write(self.suite_path, json.dumps(suite(required=["不存在的必要条件"]), ensure_ascii=False))
+        check = suite(required=["不存在的必要条件"])
+        missing_module = "example.order.detail"
+        missing_unit = "ru.business.example.order.detail.faq"
+        check["cases"][0]["expected_module_ids"].append(missing_module)
+        check["cases"][0]["expected_unit_ids"].append(missing_unit)
+        fixtures.write(self.suite_path, json.dumps(check, ensure_ascii=False))
         result = self.fixture.run_cli("retrieval-evaluate", "--release-id", "retrieval-test", "--suite", str(self.suite_path))
         self.assertEqual(result.returncode, 1)
+        row = json.loads(result.stdout)["cases"][0]
+        self.assertEqual(row["missing_module_ids"], [missing_module])
+        self.assertEqual(row["missing_unit_ids"], [missing_unit])
+        rendered = (release / "检索评测/retrieval-test.md").read_text(encoding="utf-8")
+        self.assertIn(f"未命中的预期模块：{missing_module}", rendered)
+        self.assertIn(f"未命中的目标单元：{missing_unit}", rendered)
+        self.assertIn("缺少必要短语：不存在的必要条件", rendered)
         self.assertFalse((release / "当前检索版本.json").exists())
         self.assertNotEqual(self.fixture.run_cli("retrieval-audit", "--release-id", "retrieval-test").returncode, 0)
 
@@ -235,8 +359,40 @@ class RetrievalTests(unittest.TestCase):
         report = evaluate_data(check, units, None, corpus)
         self.assertEqual(report["gate_status"], "passed")
         self.assertEqual(report["summary"]["audience_leakage"], 0)
+        self.assertEqual(report["summary"]["module_mrr"], 1.0)
+        self.assertEqual(report["summary"]["unit_mrr"], 0.875)
+        self.assertEqual(report["summary"]["mrr"], 1.0)
+        order_result = next(row for row in report["cases"] if row["case_id"] == "order-query-result")
+        self.assertEqual((order_result["module_rank"], order_result["unit_rank"]), (1, 2))
         external = json.loads((root / "external-results/minimal-business.json").read_text(encoding="utf-8"))
-        self.assertEqual(evaluate_data(check, units, external, corpus)["gate_status"], "passed")
+        external_report = evaluate_data(check, units, external, corpus)
+        self.assertEqual(external_report["gate_status"], "passed")
+        self.assertEqual(external_report["summary"]["unit_mrr"], 1.0)
+
+        by_id = {case["case_id"]: case for case in check["cases"]}
+        mixed = dict(check, cases=[
+            dict(by_id["order-query-result"], top_k=1),
+            dict(by_id["order-query-failure"], expected_unit_ids=[]),
+            dict(by_id["account-same-name-topic"], expected_module_ids=[]),
+        ])
+        mixed_report = evaluate_data(mixed, units, None, corpus)
+        self.assertEqual(mixed_report["gate_status"], "failed")
+        summary = mixed_report["summary"]
+        self.assertEqual((summary["module_mrr"], summary["unit_mrr"]), (1.0, 0.5))
+        self.assertEqual((summary["module_recall_at_k"], summary["module_case_count"]), (1.0, 2))
+        self.assertEqual((summary["unit_recall_at_k"], summary["unit_case_count"]), (0.5, 2))
+        self.assertAlmostEqual(summary["required_phrase_coverage"], 2 / 3)
+        self.assertEqual(summary["required_phrase_count"], 3)
+        self.assertEqual((summary["unknown_phrase_coverage"], summary["unknown_phrase_count"]), (1.0, 2))
+        rows = mixed_report["cases"]
+        self.assertEqual([(row["module_rank"], row["unit_rank"]) for row in rows],
+                         [(1, None), (1, None), (None, 1)])
+        self.assertEqual(rows[0]["missing_module_ids"], [])
+        self.assertEqual(rows[0]["missing_unit_ids"], by_id["order-query-result"]["expected_unit_ids"])
+        self.assertEqual(rows[0]["missing_required_phrases"], by_id["order-query-result"]["required_phrases"])
+        self.assertIsNone(rows[1]["unit_recall_at_k"])
+        self.assertIsNone(rows[2]["module_recall_at_k"])
+
         check["cases"][0]["required_unknown_phrases"] = ["线上已确认"]
         report = evaluate_data(check, units, None, corpus)
         self.assertEqual(report["gate_status"], "failed")

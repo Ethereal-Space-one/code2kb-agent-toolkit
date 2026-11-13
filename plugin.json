@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "code2kb",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Extract evidence-backed business and engineering knowledge from pinned source revisions.",
   "author": {
     "name": "Ethereal-Space-one"

@@ -78,7 +78,8 @@ def load_units(release_root: Path, manifest: dict) -> dict[str, dict]:
     return units
 
 
-def evaluate_data(suite: dict, units: dict[str, dict], external: dict | None, corpus_sha256: str, release_id: str | None = None) -> dict:
+def evaluate_data(suite: dict, units: dict[str, dict], external: dict | None, corpus_sha256: str,
+                  release_id: str | None = None, *, all_external_candidates: bool = False) -> dict:
     if not units:
         raise RetrievalError("检索语料为空")
     if external is not None:
@@ -100,7 +101,7 @@ def evaluate_data(suite: dict, units: dict[str, dict], external: dict | None, co
             all_ids = [hit["unit_id"] for hit in hits]
             if len(all_ids) != len(set(all_ids)) or any(unit_id not in units for unit_id in all_ids):
                 raise RetrievalError("外部检索结果包含重复或未知单元 ID")
-            result_ids = all_ids[:case["top_k"]]
+            result_ids = all_ids if all_external_candidates else all_ids[:case["top_k"]]
         else:
             result_ids = lexical(case["query"], allowed, case["top_k"])
         selected = [units[unit_id] for unit_id in result_ids]
@@ -111,41 +112,111 @@ def evaluate_data(suite: dict, units: dict[str, dict], external: dict | None, co
         all_text = "\n".join(unit["body"] for unit in selected)
         found_modules = {unit["meta"]["module_id"] for unit in selected}
         found_units = set(result_ids)
-        module_recall = len(expected_modules & found_modules) / len(expected_modules) if expected_modules else 1.0
-        unit_recall = len(expected_units & found_units) / len(expected_units) if expected_units else 1.0
-        rank = next((index for index, unit_id in enumerate(result_ids, 1) if unit_id in expected_units or units[unit_id]["meta"]["module_id"] in expected_modules), None)
+        missing_modules = sorted(expected_modules - found_modules)
+        missing_units = sorted(expected_units - found_units)
+        module_recall = (len(expected_modules) - len(missing_modules)) / len(expected_modules) if expected_modules else None
+        unit_recall = (len(expected_units) - len(missing_units)) / len(expected_units) if expected_units else None
+        module_rank = next((index for index, unit in enumerate(selected, 1)
+                            if unit["meta"]["module_id"] in expected_modules), None)
+        unit_rank = next((index for index, unit_id in enumerate(result_ids, 1)
+                          if unit_id in expected_units), None)
+        combined_rank = min((rank for rank in (module_rank, unit_rank) if rank is not None), default=None)
         required = [phrase for phrase in case["required_phrases"] if phrase not in text]
         unknown = [phrase for phrase in case["required_unknown_phrases"] if phrase not in text]
         forbidden = [phrase for phrase in case["forbidden_phrases"] if phrase in all_text]
         leakage = [unit_id for unit_id in result_ids if audience == "business" and units[unit_id]["meta"]["audience"] != "business"]
         hashes = [digest(re.sub(r"\s+", "", content_language.split_sources(unit["body"])[0]).encode("utf-8")) for unit in selected]
         duplicate_hits = len(hashes) - len(set(hashes))
-        passed = module_recall == 1 and unit_recall == 1 and not required and not unknown and not forbidden and not leakage and duplicate_hits == 0 and corpus_identity_correct
+        passed = (not missing_modules and not missing_units and not required and not unknown
+                  and not forbidden and not leakage and duplicate_hits == 0 and corpus_identity_correct)
         rows.append({
             "case_id": case["case_id"], "query": case["query"], "hits": result_ids,
             "module_recall_at_k": module_recall, "unit_recall_at_k": unit_recall,
-            "reciprocal_rank": 1 / rank if rank else 0.0,
+            "module_rank": module_rank, "unit_rank": unit_rank,
+            "reciprocal_rank": 1 / combined_rank if combined_rank else 0.0,
+            "missing_module_ids": missing_modules, "missing_unit_ids": missing_units,
             "missing_required_phrases": required, "missing_unknown_phrases": unknown,
             "forbidden_phrase_hits": forbidden, "audience_leakage": leakage,
             "duplicate_hits": duplicate_hits, "passed": passed,
             "source_release_correct": corpus_identity_correct,
         })
+    target_summary = {}
+    for kind in ("module", "unit"):
+        recall_key = f"{kind}_recall_at_k"
+        measured = [row for row in rows if row[recall_key] is not None]
+        count = len(measured)
+        ranks = [row[f"{kind}_rank"] for row in measured]
+        target_summary[f"{kind}_case_count"] = count
+        target_summary[recall_key] = sum(row[recall_key] for row in measured) / count if count else None
+        target_summary[f"{kind}_mrr"] = sum(1 / rank if rank else 0.0 for rank in ranks) / count if count else None
+    required_count = sum(len(case["required_phrases"]) for case in suite["cases"])
+    unknown_count = sum(len(case["required_unknown_phrases"]) for case in suite["cases"])
+    required_missing = sum(len(row["missing_required_phrases"]) for row in rows)
+    unknown_missing = sum(len(row["missing_unknown_phrases"]) for row in rows)
     return {
-        "schema_version": "0.1", "suite_id": suite["suite_id"], "suite_audience": suite["audience"],
+        "schema_version": "0.2", "suite_id": suite["suite_id"], "suite_audience": suite["audience"],
         "retriever_id": retriever_id, "corpus_sha256": corpus_sha256,
         "cases": rows,
         "summary": {"total": len(rows), "passed": sum(row["passed"] for row in rows),
-                    "module_recall_at_k": sum(row["module_recall_at_k"] for row in rows) / len(rows),
-                    "unit_recall_at_k": sum(row["unit_recall_at_k"] for row in rows) / len(rows),
+                    **target_summary,
                     "mrr": sum(row["reciprocal_rank"] for row in rows) / len(rows),
                     "audience_leakage": sum(len(row["audience_leakage"]) for row in rows),
-                    "required_phrase_coverage": 1 - sum(len(row["missing_required_phrases"]) for row in rows) / max(1, sum(len(case["required_phrases"]) for case in suite["cases"])),
-                    "unknown_phrase_coverage": 1 - sum(len(row["missing_unknown_phrases"]) for row in rows) / max(1, sum(len(case["required_unknown_phrases"]) for case in suite["cases"])),
+                    "required_phrase_count": required_count, "unknown_phrase_count": unknown_count,
+                    "required_phrase_coverage": 1 - required_missing / required_count if required_count else None,
+                    "unknown_phrase_coverage": 1 - unknown_missing / unknown_count if unknown_count else None,
                     "forbidden_phrase_hits": sum(len(row["forbidden_phrase_hits"]) for row in rows),
                     "duplicate_hit_ratio": sum(row["duplicate_hits"] for row in rows) / max(1, sum(len(row["hits"]) for row in rows)),
                     "source_release_correct": all(row["source_release_correct"] for row in rows)},
         "gate_status": "passed" if all(row["passed"] for row in rows) else "failed",
     }
+
+
+def diagnose_context(suite: dict, units: dict, external: dict, contexts: dict, corpus_sha256: str, release_id: str) -> dict:
+    """Compare retrieved full units with the excerpts supplied to the model."""
+    report = evaluate_data(suite, units, external, corpus_sha256, release_id, all_external_candidates=True)
+    if set(contexts) != {case["case_id"] for case in suite["cases"]}:
+        raise RetrievalError("上下文记录与检索题集的用例不匹配")
+    cases = []
+    for case, row in zip(suite["cases"], report["cases"]):
+        case_id = case["case_id"]
+        if row["audience_leakage"]:
+            raise RetrievalError(f"检索结果含超出受众范围的单元：{case_id}")
+        excerpts = contexts[case_id]
+        if not isinstance(excerpts, list):
+            raise RetrievalError(f"上下文记录须为片段数组：{case_id}")
+        retrieved_ids = set(row["hits"])
+        context_ids = {}
+        relevant_excerpts = []
+        for excerpt in excerpts:
+            if (not isinstance(excerpt, dict) or set(excerpt) != {"unit_id", "text"}
+                    or not isinstance(excerpt["unit_id"], str)
+                    or not isinstance(excerpt["text"], str) or not excerpt["text"].strip()):
+                raise RetrievalError(f"上下文片段须包含单元 ID 和原文：{case_id}")
+            unit_id = excerpt["unit_id"]
+            if unit_id not in retrieved_ids or excerpt["text"] not in units[unit_id]["body"]:
+                raise RetrievalError(f"上下文片段不属于本题已召回单元的原文：{case_id}")
+            module_id = units[unit_id]["meta"]["module_id"]
+            context_ids[unit_id] = module_id
+            if unit_id in case["expected_unit_ids"] or module_id in case["expected_module_ids"]:
+                relevant_excerpts.append(excerpt["text"])
+
+        missing = {
+            "module_ids": row["missing_module_ids"], "unit_ids": row["missing_unit_ids"],
+            "required_phrases": row["missing_required_phrases"],
+            "required_unknown_phrases": row["missing_unknown_phrases"],
+        }
+        lost = {
+            "module_ids": sorted(set(case["expected_module_ids"]) - set(missing["module_ids"]) - set(context_ids.values())),
+            "unit_ids": sorted(set(case["expected_unit_ids"]) - set(missing["unit_ids"]) - context_ids.keys()),
+        }
+        for key in ("required_phrases", "required_unknown_phrases"):
+            lost[key] = [phrase for phrase in case[key] if phrase not in missing[key]
+                         and not any(phrase in excerpt for excerpt in relevant_excerpts)]
+        cases.append({"case_id": case_id, "retrieved_unit_ids": row["hits"], "context_unit_ids": list(context_ids),
+                      "missing_at_retrieval": missing, "lost_during_assembly": lost})
+    return {"schema_version": "0.1", "release_id": release_id, "suite_id": suite["suite_id"],
+            "audience": suite["audience"], "retriever_id": report["retriever_id"],
+            "corpus_sha256": corpus_sha256, "cases": cases}
 
 
 def evaluate_in_release(release_root: Path, release_id: str, suite_path: Path, external_path: Path | None = None) -> dict:
@@ -171,9 +242,46 @@ def evaluate_in_release(release_root: Path, release_id: str, suite_path: Path, e
         external_copy.parent.mkdir(parents=True, exist_ok=True)
         external_copy.write_bytes(external_path.read_bytes())
     report_path.write_bytes(json_bytes(report))
-    markdown = [f"# 检索评测：{release_id}", "", f"- 问题集：{suite['suite_id']}", f"- 检索器：{report['retriever_id']}", f"- 门禁：{report['gate_status']}", f"- 通过：{report['summary']['passed']}/{report['summary']['total']}", "", "## 用例", ""]
-    for row in report["cases"]:
-        markdown.extend([f"### {row['case_id']}", "", f"- 查询：{row['query']}", f"- 结果：{', '.join(row['hits']) or '无命中'}", f"- 通过：{'是' if row['passed'] else '否'}", f"- 缺少必要短语：{', '.join(row['missing_required_phrases']) or '无'}", f"- 缺少未知边界：{', '.join(row['missing_unknown_phrases']) or '无'}", f"- 禁止断言命中：{', '.join(row['forbidden_phrase_hits']) or '无'}", f"- 受众泄漏：{', '.join(row['audience_leakage']) or '无'}", ""])
+    summary = report["summary"]
+    markdown = [f"# 检索评测：{release_id}", "", f"- 问题集：{suite['suite_id']}",
+                f"- 检索器：{report['retriever_id']}", f"- 门禁：{report['gate_status']}",
+                f"- 通过：{summary['passed']}/{summary['total']}"]
+    coverage_metrics = (
+        ("模块召回率", "module_recall_at_k", "module_case_count", "道标注题"),
+        ("目标单元召回率", "unit_recall_at_k", "unit_case_count", "道标注题"),
+        ("必要短语覆盖率", "required_phrase_coverage", "required_phrase_count", "条标注短语"),
+        ("未知边界覆盖率", "unknown_phrase_coverage", "unknown_phrase_count", "条标注短语"),
+    )
+    for label, key, count_key, count_unit in coverage_metrics:
+        value = summary[key]
+        display = f"{value:.1%}" if value is not None else "未测"
+        markdown.append(f"- {label} {display}（{summary[count_key]} {count_unit}）")
+    for label, key in (("模块 MRR", "module_mrr"), ("目标单元 MRR", "unit_mrr")):
+        value = summary[key]
+        display = f"{value:.3f}" if value is not None else "未标注"
+        markdown.append(f"- {label} {display}")
+    markdown.extend(["", "## 用例", ""])
+    for case, row in zip(suite["cases"], report["cases"]):
+        markdown.extend([f"### {row['case_id']}", "", f"- 查询：{row['query']}",
+                         f"- 结果：{', '.join(row['hits']) or '无命中'}"])
+        for label, kind in (("首个预期模块排名", "module"), ("首个目标单元排名", "unit")):
+            rank = row[f"{kind}_rank"]
+            if rank is not None:
+                display = str(rank)
+            elif case[f"expected_{kind}_ids"]:
+                display = f"未进入前 {case['top_k']} 条"
+            else:
+                display = "未标注"
+            markdown.append(f"- {label} {display}")
+        markdown.extend([
+            f"- 通过：{'是' if row['passed'] else '否'}",
+            f"- 未命中的预期模块：{', '.join(row['missing_module_ids']) or '无'}",
+            f"- 未命中的目标单元：{', '.join(row['missing_unit_ids']) or '无'}",
+            f"- 缺少必要短语：{', '.join(row['missing_required_phrases']) or '无'}",
+            f"- 缺少未知边界：{', '.join(row['missing_unknown_phrases']) or '无'}",
+            f"- 禁止断言命中：{', '.join(row['forbidden_phrase_hits']) or '无'}",
+            f"- 受众泄漏：{', '.join(row['audience_leakage']) or '无'}", "",
+        ])
     markdown_path.write_text("\n".join(markdown), encoding="utf-8")
     manifest["evaluation"] = {"suite_id": suite["suite_id"], "suite_path": f"发布/检索评测/套件/{release_id}.json", "suite_sha256": report["suite_sha256"], "report_path": f"发布/检索评测/{release_id}.json", "report_sha256": digest(report_path.read_bytes()), "report_markdown_path": f"发布/检索评测/{release_id}.md", "report_markdown_sha256": digest(markdown_path.read_bytes()), "external_results_path": f"发布/检索评测/外部结果/{release_id}.json" if external_copy else None, "external_results_sha256": digest(external_copy.read_bytes()) if external_copy else None, "retriever_id": report["retriever_id"], "corpus_sha256": corpus_sha256}
     manifest["gate_status"] = report["gate_status"]

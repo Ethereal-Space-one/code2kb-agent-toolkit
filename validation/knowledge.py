@@ -27,7 +27,7 @@ try:
     from .evidence_snapshot import snapshot as source_snapshot
     from .governance import Governance, json_text, atomic_write, digest, scan_business_terms
     from . import retrieval_build, retrieval_evaluate, retrieval_audit, retrieval_profile, retrieval_query, relation_release, relation_model, relation_upgrade, relation_upgrade_project, fact_render, run_state, workflow, host_adapter, protocol, protocol_migration, upgrade_plan
-    from .retrieval_model import markdown_destination, strict_json as retrieval_json
+    from .retrieval_model import json_bytes as retrieval_json_bytes, markdown_destination, strict_json as retrieval_json
     from . import verifier, content_language, identity
 except ImportError:  # 兼容直接执行 validation/knowledge.py
     from business_urls import contains_source_repository_url
@@ -37,7 +37,7 @@ except ImportError:  # 兼容直接执行 validation/knowledge.py
     from evidence_snapshot import snapshot as source_snapshot
     from governance import Governance, json_text, atomic_write, digest, scan_business_terms
     import retrieval_build, retrieval_evaluate, retrieval_audit, retrieval_profile, retrieval_query, relation_release, relation_model, relation_upgrade, relation_upgrade_project, fact_render, run_state, workflow, host_adapter, protocol, protocol_migration, upgrade_plan
-    from retrieval_model import markdown_destination, strict_json as retrieval_json
+    from retrieval_model import json_bytes as retrieval_json_bytes, markdown_destination, strict_json as retrieval_json
     import verifier, content_language, identity
 
 
@@ -54,6 +54,7 @@ SUPPORTED_STANDARD_VERSIONS = protocol.SUPPORTED_VERSIONS
 ACTIONS = (
     "check", "preflight", "publish", "impact", "confirm-claims", "prepare", "approve", "policy-review", "audit-release",
     "retrieval-build", "retrieval-evaluate", "retrieval-audit", "retrieval-coverage", "retrieval-compare", "retrieval-query",
+    "retrieval-diagnose-context",
     "relation-audit", "analyze-candidates", "evidence-snapshot", "render-facts", "preview-upgrade",
     "relation-report", "recover", "run-create", "run-status", "run-next", "run-begin", "run-complete",
     "run-resume", "run-cancel", "run-execute", "host-next", "migrate-protocol",
@@ -1234,15 +1235,17 @@ def _main() -> int:
             sub.add_argument("--with-retrieval", action="store_true")
             sub.add_argument("--retrieval-suite", type=Path)
             sub.add_argument("--retrieval-profile", choices=("full", "compact"))
-        if action in {"retrieval-build", "retrieval-evaluate", "retrieval-audit", "retrieval-coverage"}:
+        if action in {"retrieval-build", "retrieval-evaluate", "retrieval-audit", "retrieval-coverage", "retrieval-diagnose-context"}:
             sub.add_argument("--release-id", required=True)
         if action == "relation-audit":
             sub.add_argument("--release-id", required=True)
         if action == "retrieval-build":
             sub.add_argument("--profile", choices=("full", "compact"))
-        if action == "retrieval-evaluate":
+        if action in {"retrieval-evaluate", "retrieval-diagnose-context"}:
             sub.add_argument("--suite", type=Path, required=True)
-            sub.add_argument("--results", type=Path)
+            sub.add_argument("--results", type=Path, required=action == "retrieval-diagnose-context")
+        if action == "retrieval-diagnose-context":
+            sub.add_argument("--contexts", type=Path, required=True, help="每道题实际送入模型的证据片段 JSON")
         if action == "retrieval-compare":
             sub.add_argument("--compact-project-root", type=Path, required=True)
         if action == "retrieval-query":
@@ -1463,6 +1466,19 @@ def _main() -> int:
             return 0
         if args.action == "retrieval-query":
             print(json_text(retrieval_query.query_current(project, args.query, args.audience, args.top_k, sys.modules[__name__])))
+            return 0
+        if args.action == "retrieval-diagnose-context":
+            release_root = project / "发布"
+            governance = Governance(project, project / "知识源", {}, [], None, sys.modules[__name__])
+            governance.audit_release(args.release_id)
+            retrieval_audit.audit_in_release(release_root, args.release_id, require_ready=False)
+            manifest = retrieval_json(release_root / "检索清单" / f"{args.release_id}.json")
+            result = retrieval_evaluate.diagnose_context(
+                retrieval_evaluate.load_suite(args.suite), retrieval_evaluate.load_units(release_root, manifest),
+                retrieval_json(args.results), retrieval_json(args.contexts),
+                digest(retrieval_json_bytes(manifest["views"])), args.release_id,
+            )
+            print(json_text(result))
             return 0
         if args.action == "retrieval-compare":
             compact_project = args.compact_project_root.resolve(strict=True)

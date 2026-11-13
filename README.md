@@ -157,7 +157,7 @@ python3 -B examples/create_demo.py
 
 **产物怎样交给机器人？**
 
-业务机器人读取已发布的业务知识或已评测的业务检索单元。内部规格、过程文件和本工具的操作指令不进入语料。索引和机器人接入由使用方完成，见[检索契约](docs/retrieval-contract.md)。
+业务机器人读取已发布的业务知识或已评测的业务检索单元。内部规格、过程文件和本工具的操作指令不进入语料。索引和机器人接入由使用方完成。排查错答时，可打开检索结果的原文出处，并核对必要证据有没有进入模型上下文。 [检索契约](docs/retrieval-contract.md) · [诊断手顺](docs/retrieval-evaluation.md#诊断送入模型的证据)
 
 <br>
 
@@ -242,7 +242,7 @@ code2kb analyze-candidates --project-root /path/to/knowledge-project \
 | 导入检索系统 | [检索契约](docs/retrieval-contract.md) |
 | 判断工具保证到哪里 | [保证范围](docs/assurance-matrix.md) |
 
-当前工程版本：`2.2.0`。查看[插件分发发布说明](docs/2.2.0-release-notes.md)或 [2.2.0 Release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.2.0)。
+当前工程版本：`2.3.0`（待发布）。 [2.3.0 更新说明](docs/2.3.0-release-notes.md) · [2.2.0 Release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.2.0)
 
 本项目由 Code2KB Spec 更名为 **Code2KB Agent Toolkit**，仓库和 Python 包标识统一为 `code2kb-agent-toolkit`，命令仍为 `code2kb`。
 
