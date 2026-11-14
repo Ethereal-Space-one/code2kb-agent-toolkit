@@ -180,6 +180,8 @@ code2kb retrieval-query --project-root /项目 --query "订单查询失败时会
 
 返回 JSON 含 `release_id`、检索清单摘要、命中单元原文、单元路径及双版正文出处。`business` 只读取业务单元；`engineering` 可读取业务与研发单元。输出的 `answerability: not_assessed` 表示尚未判断证据能否回答问题；无命中也不自动构成最终拒答。此命令不修改发布物，也不生成机器人回复。未通过检索门禁或审计失败的发布物不可查询。
 
+打开命中项 `source_locations` 中的链接可核对出处。标题可唯一定位时，链接直接指向发布正文小节。排查证据遗漏时，用只读 `retrieval-diagnose-context` 对照实际召回结果和送入模型的原文片段。 [诊断手顺](retrieval-evaluation.md#诊断送入模型的证据)
+
 `compact` 项目在根目录放独立 `Code2KB工程配置.json`，保留现有知识规范文件类型；它不能靠省略必要条件或未知来缩短正文。
 
 ## 重要边界

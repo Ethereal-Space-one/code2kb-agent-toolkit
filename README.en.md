@@ -157,7 +157,7 @@ Human guides and AI workflows are separate; knowledge prose can be Chinese or En
 
 **How do I connect a bot?**
 
-Business bots consume released business files or evaluated business retrieval units. Internal specifications, process files and toolkit instructions stay out of the corpus. Consumers provide indexing and bot integration; see the [retrieval contract](docs/retrieval-contract.md).
+Business bots consume released business files or evaluated business retrieval units. Internal specifications, process files and toolkit instructions stay out of the corpus. Consumers provide indexing and bot integration. When an answer is wrong, open the retrieved evidence at its source and check which evidence reached the model. [Retrieval contract](docs/retrieval-contract.md) · [Context diagnostics](docs/retrieval-evaluation.md#诊断送入模型的证据)
 
 <br>
 
@@ -242,7 +242,7 @@ Code and IDs in these diagrams illustrate the structure. The detail diagrams use
 | Import into retrieval | [Retrieval contract](docs/retrieval-contract.md) |
 | Understand guarantees | [Assurance boundaries](docs/assurance-matrix.md) |
 
-Current project version: `2.2.0`. See the [plugin distribution release notes](docs/2.2.0-release-notes.md) or the [2.2.0 release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.2.0).
+Current project version: `2.3.0`. [2.3.0 release notes](docs/2.3.0-release-notes.md#english) · [2.3.0 release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.3.0)
 
 Formerly Code2KB Spec, **Code2KB Agent Toolkit** now uses `code2kb-agent-toolkit` for its repository and Python distribution; the command remains `code2kb`.
 

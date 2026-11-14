@@ -37,6 +37,8 @@
 
 `retrieval-query` 是只读消费入口。它先审计基础发布与当前检索发布，再按指定受众检索，返回单元原文与已审计的正文出处路径。它不会读取旧版本或绕过当前检索就绪指针；输出 `answerability: not_assessed`，不代表可答性或生成回答已验证。
 
+每条命中的 `source_locations` 按 `source_paths` 顺序给出项目相对 `path`、原文 `heading` 和 URL 编码后的 `href`。工具按命中的发布版本逐文件核对出处及标题。重名、锚点冲突、同文件多个来源标题或复杂 Markdown 结构时，`heading` 为 `null`，`href` 指向文件。消费端应在响应 `release_id` 对应的快照中解析链接。带片段的 `href` 适用于采用 GitHub 标题锚点规则的渲染器。 [GitHub 标题锚点规则](https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax#section-links)
+
 `code2kb retrieval-coverage --project-root /项目 --release-id example-v1` 在基础发布与检索扩展审计后，输出未转成检索单元的发布文件及原因，以及因跨节限定而保守保留整篇、需要人工复核的来源。根级或模块级术语表当前只留在基础发布及其人读索引中；若消费者只导入检索版，应查看报告并按原文位置补充检索来源。报告从冻结清单只读生成，不改变严格清单字段，也不宣称全部业务内容已经转为单元。
 
 ## 外部索引导入
