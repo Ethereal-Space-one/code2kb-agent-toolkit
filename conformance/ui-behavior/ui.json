@@ -1,0 +1,321 @@
+{
+  "schema_version": "c2kb-ui/0.1",
+  "controls": [
+    {
+      "control_id": "UI-REPORT-SUBMIT",
+      "entry_id": "ENT-REPORT",
+      "scope": "报送表单",
+      "role": "按钮",
+      "label": "提交",
+      "states": [
+        {
+          "state_id": "empty",
+          "when": "内容去掉首尾空白后为空且当前未等待",
+          "presentation": {
+            "visible": true,
+            "enabled": false,
+            "busy": false
+          },
+          "meaning": "主提交按钮禁用；处理函数直接返回；不能据此判断服务端校验",
+          "fact_ids": [
+            "FACT-001"
+          ]
+        },
+        {
+          "state_id": "ready",
+          "when": "内容去除首尾空白后非空且当前未等待",
+          "presentation": {
+            "visible": true,
+            "enabled": true,
+            "busy": false
+          },
+          "meaning": "允许尝试调用注入函数，不保证服务端受理",
+          "fact_ids": [
+            "FACT-003"
+          ]
+        },
+        {
+          "state_id": "pending",
+          "when": "报送处理处于等待阶段",
+          "presentation": {
+            "visible": true,
+            "enabled": false,
+            "busy": true,
+            "feedback": "正在提交"
+          },
+          "meaning": "显示忙碌；等待守卫阻止重复调用，不证明跨设备幂等",
+          "fact_ids": [
+            "FACT-002"
+          ]
+        },
+        {
+          "state_id": "returned",
+          "when": "注入函数正常返回且内容去除首尾空白后仍非空",
+          "presentation": {
+            "visible": true,
+            "enabled": true,
+            "busy": false,
+            "feedback": "提交请求已返回"
+          },
+          "meaning": "显示“提交请求已返回”，只证明调用方进入返回分支，不证明实际请求已发送；不证明服务端已保存或最终业务完成",
+          "fact_ids": [
+            "FACT-004"
+          ]
+        },
+        {
+          "state_id": "failure",
+          "when": "注入函数抛出异常且内容去除首尾空白后仍非空",
+          "presentation": {
+            "visible": true,
+            "enabled": true,
+            "busy": false,
+            "feedback": "提交失败，可重试"
+          },
+          "meaning": "显示失败；重试由用户触发，不保证重试最终成功",
+          "fact_ids": [
+            "FACT-005"
+          ]
+        }
+      ],
+      "transitions": [
+        {
+          "transition_id": "start",
+          "from": "ready",
+          "trigger": "点击报送表单的提交",
+          "guard": "内容去除首尾空白后非空且当前未等待",
+          "to": "pending",
+          "effect": {
+            "kind": "stay",
+            "target": "报送表单"
+          },
+          "feedback": "正在提交",
+          "fact_ids": [
+            "FACT-003"
+          ]
+        },
+        {
+          "transition_id": "return",
+          "from": "pending",
+          "trigger": "注入函数正常返回",
+          "guard": "该次调用正常返回且内容去除首尾空白后仍非空",
+          "to": "returned",
+          "effect": {
+            "kind": "stay",
+            "target": "报送表单"
+          },
+          "feedback": "提交请求已返回",
+          "fact_ids": [
+            "FACT-004"
+          ]
+        },
+        {
+          "transition_id": "reject",
+          "from": "pending",
+          "trigger": "注入函数抛出异常",
+          "guard": "该次调用失败且内容去除首尾空白后仍非空",
+          "to": "failure",
+          "effect": {
+            "kind": "stay",
+            "target": "报送表单"
+          },
+          "feedback": "提交失败，可重试",
+          "fact_ids": [
+            "FACT-005"
+          ]
+        },
+        {
+          "transition_id": "resubmit",
+          "from": "failure",
+          "trigger": "再次点击报送表单的提交",
+          "guard": "内容去除首尾空白后仍非空且当前未等待",
+          "to": "pending",
+          "effect": {
+            "kind": "stay",
+            "target": "报送表单"
+          },
+          "feedback": "正在提交",
+          "fact_ids": [
+            "FACT-003",
+            "FACT-005"
+          ]
+        }
+      ]
+    },
+    {
+      "control_id": "UI-REPORT-RETRY",
+      "entry_id": "ENT-RETRY",
+      "scope": "报送表单",
+      "role": "按钮",
+      "label": "重试",
+      "states": [
+        {
+          "state_id": "hidden",
+          "when": "报送阶段不是失败",
+          "presentation": {
+            "visible": false,
+            "enabled": true,
+            "busy": "not_applicable"
+          },
+          "meaning": "重试入口不展示；隐藏不证明服务端权限",
+          "fact_ids": [
+            "FACT-005"
+          ]
+        },
+        {
+          "state_id": "offered",
+          "when": "报送阶段是失败",
+          "presentation": {
+            "visible": true,
+            "enabled": true,
+            "busy": "not_applicable"
+          },
+          "meaning": "可以调用相同处理函数；内容和等待守卫仍适用，没有自动重试",
+          "fact_ids": [
+            "FACT-005",
+            "FACT-006"
+          ]
+        }
+      ],
+      "transitions": [
+        {
+          "transition_id": "retry",
+          "from": "offered",
+          "trigger": "点击重试",
+          "guard": "内容去除首尾空白后非空且当前未等待",
+          "to": "hidden",
+          "effect": {
+            "kind": "stay",
+            "target": "报送表单"
+          },
+          "feedback": "进入等待；不保证重试最终成功",
+          "fact_ids": [
+            "FACT-003",
+            "FACT-006"
+          ]
+        }
+      ]
+    },
+    {
+      "control_id": "UI-LOCAL-SUBMIT",
+      "entry_id": "ENT-LOCAL",
+      "scope": "本地确认区域",
+      "role": "按钮",
+      "label": "提交",
+      "states": [
+        {
+          "state_id": "closed",
+          "when": "本地对话框关闭",
+          "presentation": {
+            "visible": true,
+            "enabled": true,
+            "busy": false
+          },
+          "meaning": "只打开本地对话框，不调用报送函数",
+          "fact_ids": [
+            "FACT-007"
+          ]
+        },
+        {
+          "state_id": "opened",
+          "when": "本地对话框已打开",
+          "presentation": {
+            "visible": true,
+            "enabled": true,
+            "busy": false
+          },
+          "meaning": "对话框开关不代表报送阶段变化",
+          "fact_ids": [
+            "FACT-007",
+            "FACT-009"
+          ]
+        }
+      ],
+      "transitions": [
+        {
+          "transition_id": "open",
+          "from": "closed",
+          "trigger": "点击本地确认区域的提交",
+          "guard": "无额外条件",
+          "to": "opened",
+          "effect": {
+            "kind": "open_panel",
+            "target": "本地确认对话框"
+          },
+          "feedback": "展示本地确认说明",
+          "fact_ids": [
+            "FACT-007"
+          ]
+        },
+        {
+          "transition_id": "reopen",
+          "from": "opened",
+          "trigger": "再次点击本地确认区域的提交",
+          "guard": "无额外条件",
+          "to": "opened",
+          "effect": {
+            "kind": "open_panel",
+            "target": "本地确认对话框"
+          },
+          "feedback": "仍展示本地确认说明",
+          "fact_ids": [
+            "FACT-007"
+          ]
+        }
+      ]
+    },
+    {
+      "control_id": "UI-LOCAL-CLOSE",
+      "entry_id": "ENT-CLOSE",
+      "scope": "本地确认对话框",
+      "role": "按钮",
+      "label": "关闭",
+      "states": [
+        {
+          "state_id": "hidden",
+          "when": "本地对话框关闭",
+          "presentation": {
+            "visible": false,
+            "enabled": true,
+            "busy": "not_applicable"
+          },
+          "meaning": "关闭按钮随对话框隐藏",
+          "fact_ids": [
+            "FACT-008"
+          ]
+        },
+        {
+          "state_id": "opened",
+          "when": "本地对话框打开",
+          "presentation": {
+            "visible": true,
+            "enabled": true,
+            "busy": "not_applicable"
+          },
+          "meaning": "关闭按钮只把对话框开关设为关闭；不证明取消报送请求或回滚",
+          "fact_ids": [
+            "FACT-008",
+            "FACT-009"
+          ]
+        }
+      ],
+      "transitions": [
+        {
+          "transition_id": "close",
+          "from": "opened",
+          "trigger": "点击关闭",
+          "guard": "无额外条件",
+          "to": "hidden",
+          "effect": {
+            "kind": "close_panel",
+            "target": "本地确认对话框"
+          },
+          "feedback": "本地对话框隐藏；报送阶段不由此改变",
+          "fact_ids": [
+            "FACT-008",
+            "FACT-009"
+          ]
+        }
+      ]
+    }
+  ]
+}

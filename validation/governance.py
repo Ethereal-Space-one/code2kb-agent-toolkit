@@ -15,10 +15,10 @@ from urllib.parse import quote
 
 try:
     from .pinned_source import PinnedReads
-    from . import relation_model, fact_render, run_state, verifier, content_language
+    from . import relation_model, fact_render, run_state, verifier, content_language, ui_model
 except ImportError:
     from pinned_source import PinnedReads
-    import relation_model, fact_render, run_state, verifier, content_language
+    import relation_model, fact_render, run_state, verifier, content_language, ui_model
 
 
 FILES_HEADER = "| 文件 | document_type | 内容摘要 |"
@@ -698,10 +698,14 @@ class Governance:
     def expected_claims(self, spec):
         rows = self.core.table_rows(spec.body, "## 入口与调用链", FACT_HEADER)
         normalized = fact_render.normalized_facts(spec, self.core)
+        ui = ui_model.analyze_spec(spec, self.outline, self.core, self.config.get("standard_version"))
+        ui_dependencies = ui_model.fact_dependencies(ui, entries=self.outline.entries) if ui is not None else {}
         targets = {}
         for row in rows:
             fact_id, _, _, _, affected = row
             fingerprint_input = [row, normalized[fact_id]] if fact_id in normalized else row
+            if fact_id in ui_dependencies:
+                fingerprint_input = {"fact": fingerprint_input, "ui": ui_dependencies[fact_id]}
             fingerprint = digest(json.dumps(fingerprint_input, ensure_ascii=False, separators=(",", ":"), sort_keys=True))
             for local in re.split(r"[、,，]", affected):
                 local = local.strip().strip("`")
@@ -738,7 +742,12 @@ class Governance:
                 values.append([reference, "MISSING_FACT"])
                 continue
             normalized = fact_render.normalized_facts(spec, self.core)
-            values.append([reference, rows[fact_id], normalized.get(fact_id), spec.meta.get("source_revisions")])
+            value = [reference, rows[fact_id], normalized.get(fact_id), spec.meta.get("source_revisions")]
+            ui = ui_model.analyze_spec(spec, self.outline, self.core, self.config.get("standard_version"))
+            ui_dependencies = ui_model.fact_dependencies(ui, entries=self.outline.entries) if ui is not None else {}
+            if fact_id in ui_dependencies:
+                value.append({"ui": ui_dependencies[fact_id]})
+            values.append(value)
         return digest(json.dumps(values, ensure_ascii=False, separators=(",", ":"), sort_keys=True))
 
     def expected_relation_reviews(self, module_id):

@@ -211,6 +211,12 @@
     ],
     "C2KB-VIEW-006": [
       "validation/tests/test_governance.py::GovernanceTests.test_publish_preserves_all_eight_documents_and_routes"
+    ],
+    "C2KB-EXT-007": [
+      "validation/tests/test_ui_model.py::UIModelTests.test_verified_fact_references_do_not_upgrade_unknowns",
+      "validation/tests/test_ui_model.py::UIModelTests.test_every_nested_object_is_strict_and_safe_on_bad_types",
+      "validation/tests/test_ui_model.py::UIIntegrationTests.test_preflight_and_check_use_same_validator_without_mutation",
+      "validation/tests/test_ui_behavior_release.py::UIBehaviorReleaseTests.test_guard_change_blocks_release_and_preserves_old_snapshot"
     ]
   }
 }

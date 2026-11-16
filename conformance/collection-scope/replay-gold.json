@@ -1,0 +1,99 @@
+{
+  "H1": {
+    "sets": {
+      "visible": [
+        "O-101",
+        "O-102"
+      ],
+      "matching": [
+        "O-101",
+        "O-102",
+        "O-104",
+        "O-106"
+      ]
+    }
+  },
+  "H2": {
+    "sets": {
+      "batch": [
+        "O-101",
+        "O-102"
+      ]
+    },
+    "judgment": "No, rows on page two are not included in a fresh page-one select-all."
+  },
+  "H3": {
+    "sets": {
+      "batch": [
+        "O-101",
+        "O-102",
+        "O-104",
+        "O-106"
+      ]
+    }
+  },
+  "H4": {
+    "sets": {
+      "batch": [
+        "O-101",
+        "O-104"
+      ],
+      "export": [
+        "O-101",
+        "O-102",
+        "O-104",
+        "O-106"
+      ]
+    }
+  },
+  "H5": {
+    "sets": {
+      "visible": [
+        "O-104",
+        "O-106"
+      ],
+      "export": [
+        "O-101",
+        "O-102",
+        "O-104",
+        "O-106"
+      ]
+    },
+    "judgment": "Visible page and export scope are not the same."
+  },
+  "H6": {
+    "sets": {},
+    "judgment": "The fixture calculates target IDs only; cannot claim actual sent/processing, storage or delivery."
+  },
+  "H7": {
+    "sets": {
+      "selected": [],
+      "batch": []
+    },
+    "judgment": "Changing the filter clears selection and resets the page; no old selection is processed."
+  },
+  "H8": {
+    "sets": {},
+    "judgment": "No. Out of current page O-104 is rejected; old selection unchanged."
+  },
+  "H9": {
+    "sets": {
+      "selected": [
+        "O-101",
+        "O-104",
+        "O-106"
+      ]
+    },
+    "judgment": "Page select-all adds the second page and retains O-101."
+  },
+  "H10": {
+    "sets": {
+      "batch": [],
+      "export": [
+        "O-103",
+        "O-105"
+      ]
+    },
+    "judgment": "Scope is completed status; selection is cleared."
+  }
+}

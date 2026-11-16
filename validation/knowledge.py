@@ -28,7 +28,7 @@ try:
     from .governance import Governance, json_text, atomic_write, digest, scan_business_terms
     from . import retrieval_build, retrieval_evaluate, retrieval_audit, retrieval_profile, retrieval_query, relation_release, relation_model, relation_upgrade, relation_upgrade_project, fact_render, run_state, workflow, host_adapter, protocol, protocol_migration, upgrade_plan
     from .retrieval_model import json_bytes as retrieval_json_bytes, markdown_destination, strict_json as retrieval_json
-    from . import verifier, content_language, identity
+    from . import verifier, content_language, identity, ui_model
 except ImportError:  # 兼容直接执行 validation/knowledge.py
     from business_urls import contains_source_repository_url
     from adapters.ts_java import scan as scan_candidates
@@ -38,7 +38,7 @@ except ImportError:  # 兼容直接执行 validation/knowledge.py
     from governance import Governance, json_text, atomic_write, digest, scan_business_terms
     import retrieval_build, retrieval_evaluate, retrieval_audit, retrieval_profile, retrieval_query, relation_release, relation_model, relation_upgrade, relation_upgrade_project, fact_render, run_state, workflow, host_adapter, protocol, protocol_migration, upgrade_plan
     from retrieval_model import json_bytes as retrieval_json_bytes, markdown_destination, strict_json as retrieval_json
-    import verifier, content_language, identity
+    import verifier, content_language, identity, ui_model
 
 
 _VERSION_FILE = Path(__file__).resolve().parents[1] / "VERSION"
@@ -55,7 +55,7 @@ ACTIONS = (
     "check", "preflight", "publish", "impact", "confirm-claims", "prepare", "approve", "policy-review", "audit-release",
     "retrieval-build", "retrieval-evaluate", "retrieval-audit", "retrieval-coverage", "retrieval-compare", "retrieval-query",
     "retrieval-diagnose-context",
-    "relation-audit", "analyze-candidates", "evidence-snapshot", "render-facts", "preview-upgrade",
+    "relation-audit", "analyze-candidates", "evidence-snapshot", "render-facts", "render-ui-facts", "preview-upgrade",
     "relation-report", "recover", "run-create", "run-status", "run-next", "run-begin", "run-complete",
     "run-resume", "run-cancel", "run-execute", "host-next", "migrate-protocol",
     "evidence-pack", "verifier-calibrate",
@@ -966,6 +966,7 @@ def validate_project(docs: list[Document], outline: Outline, config: dict, adapt
         spec = specs[0]
         sources = document_revisions(spec, config)
         fact_count = validate_spec_facts(spec, config, cache, sources)
+        ui_model.analyze_spec(spec, outline, sys.modules[__name__], config.get("standard_version"))
         if entry_coverage:
             validate_entry_coverage(spec, outline)
         fact_render.normalized_facts(spec, sys.modules[__name__])
@@ -1266,7 +1267,7 @@ def _main() -> int:
             sub.add_argument("--plan-sha256", help="正式执行时填写预演返回的摘要")
         if action == "evidence-snapshot":
             sub.add_argument("--anchor", required=True)
-        if action == "render-facts":
+        if action in {"render-facts", "render-ui-facts"}:
             sub.add_argument("--module-id", required=True)
         if action == "relation-report":
             sub.add_argument("--module-id", required=True)
@@ -1572,6 +1573,18 @@ def _main() -> int:
         governance.validate_intents(for_publish=args.action == "publish")
         governance.validate_matches(for_publish=args.action == "publish")
         governance.validate_relations()
+        if args.action == "render-ui-facts":
+            spec = governance.spec(args.module_id)
+            model = ui_model.parse_spec(spec)
+            if model is None:
+                raise KnowledgeError("模块没有界面交互规格")
+            entry_names = {row[0]: row[2] for row in outline.entries if row[3] == args.module_id}
+            segments = fact_render.render_ui(spec, model, sys.modules[__name__], entry_names,
+                                             language=content_language.declared(config))
+            for segment in segments:
+                scan_business_terms(sys.modules[__name__], segment["business"], segment["control_id"])
+            print(json_text({"module_id": args.module_id, "status": "review_candidate", "segments": segments}))
+            return 0
         if args.action == "relation-report":
             relation = governance.relations.get(args.module_id)
             if not relation:

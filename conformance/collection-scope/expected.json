@@ -1,0 +1,52 @@
+{
+  "fixture_version": "1",
+  "module_id": "example.collection_scope",
+  "source_sha256": "8eaa84730d83913b5d9275bf9dc55bb09472d8c0696a80f17801335008066478",
+  "sets": {
+    "default_matching": ["O-101", "O-102", "O-104", "O-106"],
+    "page_one": ["O-101", "O-102"],
+    "page_two": ["O-104", "O-106"],
+    "cross_selected": ["O-101", "O-104"],
+    "cross_batch": ["O-101", "O-104"],
+    "cross_export": ["O-101", "O-102", "O-104", "O-106"],
+    "page_all_empty": ["O-104", "O-106"],
+    "page_all_existing": ["O-101", "O-104", "O-106"],
+    "all_matching": ["O-101", "O-102", "O-104", "O-106"],
+    "changed_filter_matching": ["O-103", "O-105"],
+    "changed_filter_selected": [],
+    "changed_filter_batch": [],
+    "changed_filter_export": ["O-103", "O-105"],
+    "empty_batch": []
+  },
+  "facts": [
+    {"fact_id": "FACT-001", "claim": "默认筛选待处理订单，六条演练记录中的匹配顺序为 O-101、O-102、O-104、O-106。", "anchors": ["fixture:orders.py:10-29"]},
+    {"fact_id": "FACT-002", "claim": "演练每页两条，默认第一页为 O-101、O-102，第二页为 O-104、O-106。", "anchors": ["fixture:orders.py:10-34"]},
+    {"fact_id": "FACT-003", "claim": "翻页保留选择，第一页选 O-101 后在第二页选 O-104，已选为 O-101、O-104。", "anchors": ["fixture:orders.py:21-25", "fixture:orders.py:37-40", "fixture:orders.py:47-50"]},
+    {"fact_id": "FACT-004", "claim": "改筛选会重置为第一页并清空选择；已完成筛选匹配 O-103、O-105。", "anchors": ["fixture:orders.py:10-29", "fixture:orders.py:43-44"]},
+    {"fact_id": "FACT-005", "claim": "本页全选合并当前页与此前选择；空选择的默认第二页只新增 O-104、O-106。", "anchors": ["fixture:orders.py:32-34", "fixture:orders.py:53-54"]},
+    {"fact_id": "FACT-006", "claim": "选择全部匹配取当前筛选的匹配集合，默认是 O-101、O-102、O-104、O-106。", "anchors": ["fixture:orders.py:28-29", "fixture:orders.py:57-58"]},
+    {"fact_id": "FACT-007", "claim": "批量只计算已选目标且不修改演练状态；跨页已选 O-101、O-104 时批量目标也是这两条，空选择时目标为空。", "anchors": ["fixture:orders.py:61-62"]},
+    {"fact_id": "FACT-008", "claim": "导出只计算当前筛选的全部匹配，不读取选择或当前页，不交付文件；默认目标为 O-101、O-102、O-104、O-106。", "anchors": ["fixture:orders.py:10-29", "fixture:orders.py:65-66"]},
+    {"fact_id": "FACT-009", "claim": "单选不在当前页的订单会抛错且不改变原选择，默认第一页不能直接选择 O-104。", "anchors": ["fixture:orders.py:32-34", "fixture:orders.py:47-50"]}
+  ],
+  "entries": [
+    {"entry_id": "ENT-DEFAULT", "action": "默认订单筛选", "line": 28, "fact_ids": ["FACT-001"]},
+    {"entry_id": "ENT-PAGE", "action": "订单翻页", "line": 37, "fact_ids": ["FACT-002", "FACT-003"]},
+    {"entry_id": "ENT-FILTER", "action": "修改订单筛选", "line": 43, "fact_ids": ["FACT-004"]},
+    {"entry_id": "ENT-SELECT", "action": "单选当前页订单", "line": 47, "fact_ids": ["FACT-003", "FACT-009"]},
+    {"entry_id": "ENT-PAGE-ALL", "action": "本页全选", "line": 53, "fact_ids": ["FACT-005"]},
+    {"entry_id": "ENT-MATCH-ALL", "action": "选择全部匹配", "line": 57, "fact_ids": ["FACT-006"]},
+    {"entry_id": "ENT-BATCH", "action": "计算批量目标", "line": 61, "fact_ids": ["FACT-007"]},
+    {"entry_id": "ENT-EXPORT", "action": "计算导出目标", "line": 65, "fact_ids": ["FACT-008"]}
+  ],
+  "cases": [
+    {"case_id": "defaults", "query": "默认筛选与两页分别有哪些订单？", "required_phrases": ["默认只看待处理订单", "第一页 O-101、O-102；第二页 O-104、O-106"], "required_unknown_phrases": []},
+    {"case_id": "cross-scope", "query": "翻页选两条后，批量和导出一样吗？", "required_phrases": ["先选第一页的 O-101，再翻到第二页选 O-104", "批量目标是 O-101、O-104；导出目标是 O-101、O-102、O-104、O-106", "计算批量目标不改变订单或筛选"], "required_unknown_phrases": ["实际处理与交付未验证"]},
+    {"case_id": "select-all", "query": "第二页点本页全选，等于选择全部匹配吗？", "required_phrases": ["尚未选择任何订单的第二页", "本页全选只选 O-104、O-106；选择全部匹配则选 O-101、O-102、O-104、O-106", "若已选 O-101，再在第二页本页全选，结果是 O-101、O-104、O-106"], "required_unknown_phrases": []},
+    {"case_id": "filter-reset", "query": "跨页选择后改成已完成筛选会怎样？", "required_phrases": ["改筛选会回到第一页并清空选择", "此时批量目标为空，导出目标是 O-103、O-105", "翻页本身不清空选择，改筛选才清空"], "required_unknown_phrases": []},
+    {"case_id": "empty-selection", "query": "没选任何订单也能有导出目标吗？", "required_phrases": ["没有选择时，批量目标为空，导出目标仍是 O-101、O-102、O-104、O-106", "导出依据筛选，不依据已选数量"], "required_unknown_phrases": []},
+    {"case_id": "invalid-selection", "query": "第一页直接选择 O-104 会怎样？", "required_phrases": ["默认第一页直接选择 O-104 会被拒绝，原选择不变", "先翻到第二页就可以选择 O-104"], "required_unknown_phrases": []},
+    {"case_id": "runtime-unknown", "query": "有目标订单就表示已经处理或保存了吗？", "required_phrases": ["这里只计算虚构订单的目标集合"], "required_unknown_phrases": ["实际批量处理、导出文件交付和保存结果未验证", "线上权限、实时订单和运行配置未知"]}
+  ],
+  "forbidden_phrases": ["FACT-", "fixture:orders.py", "所有订单都已处理", "已经交付导出文件", "翻页会清空选择", "导出只包含已选订单"]
+}

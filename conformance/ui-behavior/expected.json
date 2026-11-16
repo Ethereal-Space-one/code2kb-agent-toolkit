@@ -1,0 +1,181 @@
+{
+  "source_sha256": "2bba0f40db96551eb109d88381bd629d7c941c282c4a015bc2220ceb01e8ae42",
+  "module_id": "example.ui.controls",
+  "facts": [
+    {
+      "fact_id": "FACT-001",
+      "claim": "报送内容去掉首尾空白后为空时，主提交按钮禁用且处理函数直接返回。",
+      "anchors": [
+        "fixture:ControlBehavior.vue:6-7",
+        "fixture:ControlBehavior.vue:32-33"
+      ]
+    },
+    {
+      "fact_id": "FACT-002",
+      "claim": "正在等待时主提交按钮禁用且显示忙碌，输入框禁用；处理函数的等待守卫阻止再次调用。",
+      "anchors": [
+        "fixture:ControlBehavior.vue:5-7",
+        "fixture:ControlBehavior.vue:32-35"
+      ]
+    },
+    {
+      "fact_id": "FACT-003",
+      "claim": "内容去除首尾空白后非空且当前未等待时，提交把阶段设为等待、显示正在提交并尝试调用注入函数。",
+      "anchors": [
+        "fixture:ControlBehavior.vue:32-37"
+      ]
+    },
+    {
+      "fact_id": "FACT-004",
+      "claim": "注入函数正常返回后，阶段设为成功并显示提交请求已返回；没有服务端保存或最终业务完成证据。",
+      "anchors": [
+        "fixture:ControlBehavior.vue:37-39"
+      ]
+    },
+    {
+      "fact_id": "FACT-005",
+      "claim": "注入函数抛出异常后，阶段设为失败、显示提交失败可重试，重试按钮在失败阶段展示。",
+      "anchors": [
+        "fixture:ControlBehavior.vue:9",
+        "fixture:ControlBehavior.vue:40-42"
+      ]
+    },
+    {
+      "fact_id": "FACT-006",
+      "claim": "重试按钮调用相同处理函数，仍受内容和等待守卫约束；片段没有自动重试循环。",
+      "anchors": [
+        "fixture:ControlBehavior.vue:9",
+        "fixture:ControlBehavior.vue:32-43"
+      ]
+    },
+    {
+      "fact_id": "FACT-007",
+      "claim": "本地确认区域的提交只打开本地对话框，不调用报送函数。",
+      "anchors": [
+        "fixture:ControlBehavior.vue:12-16",
+        "fixture:ControlBehavior.vue:45-47"
+      ]
+    },
+    {
+      "fact_id": "FACT-008",
+      "claim": "本地对话框的关闭按钮只把对话框开关设为关闭，没有取消请求或回滚操作。",
+      "anchors": [
+        "fixture:ControlBehavior.vue:15-17",
+        "fixture:ControlBehavior.vue:48-50"
+      ]
+    },
+    {
+      "fact_id": "FACT-009",
+      "claim": "对话框开关与报送阶段分别记录；本片段的开关方法不写报送阶段。",
+      "anchors": [
+        "fixture:ControlBehavior.vue:28-29",
+        "fixture:ControlBehavior.vue:45-50"
+      ]
+    }
+  ],
+  "entries": [
+    {
+      "entry_id": "ENT-REPORT",
+      "action": "报送表单提交",
+      "line": 6,
+      "fact_ids": [
+        "FACT-001",
+        "FACT-002",
+        "FACT-003",
+        "FACT-004",
+        "FACT-005"
+      ]
+    },
+    {
+      "entry_id": "ENT-RETRY",
+      "action": "报送失败重试",
+      "line": 9,
+      "fact_ids": [
+        "FACT-005",
+        "FACT-006"
+      ]
+    },
+    {
+      "entry_id": "ENT-LOCAL",
+      "action": "本地确认区域提交",
+      "line": 14,
+      "fact_ids": [
+        "FACT-007",
+        "FACT-009"
+      ]
+    },
+    {
+      "entry_id": "ENT-CLOSE",
+      "action": "本地对话框关闭",
+      "line": 17,
+      "fact_ids": [
+        "FACT-008",
+        "FACT-009"
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "case_id": "empty",
+      "query": "报送表单 提交 内容为空 首尾空白",
+      "required_phrases": [
+        "去掉首尾空白后为空",
+        "处理函数直接返回"
+      ],
+      "required_unknown_phrases": [
+        "不能据此判断服务端校验"
+      ]
+    },
+    {
+      "case_id": "pending",
+      "query": "报送表单 提交 等待 再点 忙碌",
+      "required_phrases": [
+        "等待守卫",
+        "忙碌"
+      ],
+      "required_unknown_phrases": [
+        "不证明跨设备幂等"
+      ]
+    },
+    {
+      "case_id": "returned",
+      "query": "报送表单 提交 正常返回 保存 完成",
+      "required_phrases": [
+        "提交请求已返回"
+      ],
+      "required_unknown_phrases": [
+        "不证明服务端已保存或最终业务完成"
+      ]
+    },
+    {
+      "case_id": "retry",
+      "query": "报送表单 失败 重试 自动",
+      "required_phrases": [
+        "相同处理函数",
+        "没有自动重试"
+      ],
+      "required_unknown_phrases": [
+        "不保证重试最终成功"
+      ]
+    },
+    {
+      "case_id": "local",
+      "query": "本地确认区域 提交 对话框",
+      "required_phrases": [
+        "只打开本地对话框",
+        "不调用报送函数"
+      ],
+      "required_unknown_phrases": []
+    },
+    {
+      "case_id": "close",
+      "query": "本地对话框 关闭 取消 请求 回滚",
+      "required_phrases": [
+        "只把对话框开关设为关闭"
+      ],
+      "required_unknown_phrases": [
+        "不证明取消报送请求或回滚"
+      ]
+    }
+  ]
+}

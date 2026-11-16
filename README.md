@@ -49,6 +49,14 @@ AI 沿代码整理功能、流程、限制和问答；`code2kb` 检查证据记�
 
 <br>
 
+### 可选：控件行为与集合范围
+
+按钮何时显示、能否点击、忙碌意味着什么，不能只用任务流程代替。可在内部规格中填写有事实依据的控件状态与转换，再用只读 `render-ui-facts` 生成双版候选，经既有复核和审核后发布。它不自动抽取前端、不推断线上结果；启用章节须用 2.4+ 维护。[交互契约与生命周期](docs/ui-behavior-contract.md) · [可复现控件样例](conformance/ui-behavior/README.md)
+
+列表筛选、分页、跨页选择、批量和导出可先用既有事实与正文准确表达，不需要新的集合对象或任务引擎。[集合参考场景与回答重放](conformance/collection-scope/README.md)
+
+<br>
+
 ## 插件安装
 
 | 宿主 | 安装方式 |
@@ -242,7 +250,7 @@ code2kb analyze-candidates --project-root /path/to/knowledge-project \
 | 导入检索系统 | [检索契约](docs/retrieval-contract.md) |
 | 判断工具保证到哪里 | [保证范围](docs/assurance-matrix.md) |
 
-当前工程版本：`2.3.0`。 [2.3.0 更新说明](docs/2.3.0-release-notes.md) · [2.3.0 Release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.3.0)
+当前工程版本：`2.4.0`。 [2.4.0 更新说明](docs/2.4.0-release-notes.md) · [2.4.0 Release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.4.0)
 
 本项目由 Code2KB Spec 更名为 **Code2KB Agent Toolkit**，仓库和 Python 包标识统一为 `code2kb-agent-toolkit`，命令仍为 `code2kb`。
 

@@ -6,9 +6,11 @@
 
 - `cases.json`：夹具清单及有效/无效预期；
 - `valid/`、`invalid/`：不依赖维护者机器路径的输入；
-- `coverage.json`：66 条规范要求到可执行测试、夹具或示例的显式映射；这些映射不等于 66 条语义均由机器证明，见[保证范围矩阵](../docs/assurance-matrix.md)；
+- `coverage.json`：67 条规范要求到可执行测试、夹具或示例的显式映射；这些映射不等于 67 条语义均由机器证明，见[保证范围矩阵](../docs/assurance-matrix.md)；
 - `expected/report.json`：官方参考实现的确定性报告；
 - `compatibility-statement.template.json`：第三方兼容声明模板。
+- [ui-behavior](ui-behavior/README.md)：四个作者登记控件、固定事实、候选生成与发布/维护生命周期，不代表运行时验证。
+- [collection-scope](collection-scope/README.md)：自编有界订单集合、精确目标真值及既有发布/检索/组装传递测试，不代表生产应用或回答模型质量。
 
 ## 运行
 
