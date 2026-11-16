@@ -76,3 +76,76 @@ def render_mapped(spec, mapping: dict, core, external_specs: dict | None = None,
         if link["from_type"] == "fact" and link["to_type"] == "topic" and link["status"] == "verified":
             linked.setdefault(link["to_id"], []).append(link["from_id"])
     return [render_topic(topic, linked[topic["topic_id"]], facts, language=language) for topic in mapping["topics"] if topic["topic_id"] in linked]
+
+
+def render_ui(spec, model: dict, core, entry_names: dict, *, language: str = content_language.DEFAULT) -> list[dict]:
+    """Render review candidates from a validated UI block; this never publishes."""
+    details = {row[0]: row for row in core.table_rows(spec.body, "## 入口与调用链", FACT_HEADER)}
+    normalized = normalized_facts(spec, core)
+    zh = language != "en"
+    dimensions = {
+        "visible": ("显示", "Visible"), "enabled": ("已启用", "Enabled"), "busy": ("等待中", "Busy"),
+    }
+    values = {
+        True: ("是", "yes"), False: ("否", "no"),
+        "unknown": ("未知", "unknown"), "not_applicable": ("不适用", "not applicable"),
+    }
+    effect_labels = {
+        "stay": ("留在", "Stay at"), "open_panel": ("打开", "Open"), "close_panel": ("关闭", "Close"),
+        "navigate": ("前往", "Navigate to"), "external": ("外部交互", "External interaction"),
+        "unknown": ("结果未验证", "Result unverified"),
+    }
+
+    def title(pair):
+        return pair[0 if zh else 1]
+
+    def bounds(ids):
+        clauses = []
+        for key, zh_label, en_label in (
+            ("condition", "适用条件", "Applicability"),
+            ("exception", "例外与失败", "Exceptions and failures"),
+            ("unknown", "仍不能确定", "Unverified outcomes"),
+        ):
+            texts = dict.fromkeys(normalized[ref][key] for ref in ids if ref in normalized and normalized[ref][key] != "无")
+            clauses.extend(f"  - {zh_label if zh else en_label}：{text}" for text in texts)
+        return clauses
+
+    def heading(text):
+        return " ".join(text.split())
+
+    segments = []
+    for control in model["controls"]:
+        display = f"{heading(control['scope'])} · {heading(control['label'])}"
+        lines = [f"## {display}", ""]
+        states = {item["state_id"]: item["when"] for item in control["states"]}
+        refs = set()
+        for item in control["states"]:
+            refs.update(item["fact_ids"])
+            presentation = item["presentation"]
+            summary = ("；" if zh else "; ").join(
+                f"{title(label)}：{title(values[presentation[key]])}" for key, label in dimensions.items()
+            )
+            line = f"- {item['when']}：{item['meaning']}。{summary}。" if zh else f"- {item['when']}: {item['meaning']}. {summary}."
+            lines.append(line)
+            for key, labels in (("label", ("文案", "Label")), ("feedback", ("反馈", "Feedback"))):
+                if key in presentation:
+                    lines.append(f"  - {title(labels)}：{presentation[key]}")
+            lines.extend(bounds(item["fact_ids"]))
+        for item in control["transitions"]:
+            refs.update(item["fact_ids"])
+            effect = item["effect"]
+            target = entry_names[effect["target"]] if effect["kind"] == "navigate" else effect["target"]
+            outcome = f"{title(effect_labels[effect['kind']])}：{target}"
+            if zh:
+                lines.append(f"- 在「{states[item['from']]}」，当「{item['guard']}」并触发「{item['trigger']}」时，转为「{states[item['to']]}」。{outcome}。反馈：{item['feedback']}")
+            else:
+                lines.append(f"- From “{states[item['from']]}”: on “{item['trigger']}” if “{item['guard']}”, move to “{states[item['to']]}”. {outcome}. Feedback: {item['feedback']}")
+            lines.extend(bounds(item["fact_ids"]))
+        business = "\n".join(lines).rstrip() + "\n"
+        evidence_heading = "证据与源码" if zh else "Evidence and source"
+        engineering = business + f"\n### {evidence_heading}\n\n" + "\n".join(
+            f"- {ref}（{details[ref][2]}）：{details[ref][3]}" for ref in sorted(refs)
+        ) + "\n"
+        segments.append({"control_id": control["control_id"], "fact_ids": sorted(refs),
+                         "business": business, "engineering": engineering})
+    return segments

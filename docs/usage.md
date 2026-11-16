@@ -204,3 +204,15 @@ code2kb preflight --project-root /项目 --module-id example.module
 预检只读检查候选集合、源码基线、接口与方法对应、本模块链接和调用匹配的静态规则，并预览 FAQ 检索标题。已登记的跨模块引用与术语表链接可以延期核对实际目标。未登记的引用、无效的本模块结构和越出知识源的链接会报错。正式 `prepare` 继续核对实际引用目标、部署证据、问答结果和其他全局门槛。
 
 多模块任务可在冻结输入上运行一次全局 impact，再逐模块实质复核、confirm-claims、prepare；最后全局 check 成功且明确 `pending_claim_impacts: 0` 时，无需再逐模块获取空队列。任何输入变化使旧结果失效，批准与发布要求不变。详见[批次与接续手顺](../skills/extract-app-knowledge/references/长任务续跑.md)。
+
+## 可选：作者填写的界面交互规格
+
+使用 2.4+ 时，可按[界面交互契约](ui-behavior-contract.md)在模块内部规格记录有证据的控件状态和转换。它补充“这个按钮为什么显示、启用或忙碌，点击后去哪、失败是否能重试”，不替代 FACT/ENT 或自动提取页面。
+
+```bash
+code2kb render-ui-facts --project-root /项目 --module-id example.module
+```
+
+输出为 `review_candidate`，不修改文件或批准。先核对可读条件、范围、异常及未知，把片段合入既有双版正文，再走 `impact`、实质复核、`confirm-claims`、`prepare --refresh` 和现有审核发布。修改/删除 UI 内容或更名导航目标后要重新检查影响，旧快照不变。旧工具不理解该扩展，启用章节的项目须继续用 2.4+ 维护。
+
+从仓库直接导出[四控件完整夹具](../conformance/ui-behavior/README.md)练习生命周期；[集合范围案例](../conformance/collection-scope/README.md)用既有正文区分筛选、分页、选择、批量与导出，不要求新建集合 schema。两者均为测试样例，不是使用方项目的自动批准手顺。

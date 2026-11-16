@@ -61,6 +61,14 @@ Start a new session and ask the agent to extract source knowledge with Code2KB. 
 
 <br>
 
+## Optional: controls and collection scope
+
+Authored control states and transitions can capture visibility, enablement, busy feedback, guards and outcomes using existing verified facts. The read-only `render-ui-facts` command returns business/engineering candidates, not approved or published knowledge. It does not extract front-end behavior or verify runtime outcomes. UI-enabled projects must use 2.4+ for validation and impact review. [English workflow](docs/usage.en.md#optional-authored-ui-behavior) · [Reproducible UI fixture](conformance/ui-behavior/README.md)
+
+The [bounded collection example](conformance/collection-scope/README.md) uses existing facts, prose and retrieval to distinguish filtering, pagination, cross-page selection, page/all-match selection, batch targets and export targets. It adds no collection schema or workflow engine.
+
+<br>
+
 ## Quick start
 
 Requires **Git, Python 3.9+**, and a coding agent that can read local repositories. Mutating commands require `fcntl` file locking on platforms such as Linux and macOS; other platforms can run read-only checks.
@@ -242,7 +250,7 @@ Code and IDs in these diagrams illustrate the structure. The detail diagrams use
 | Import into retrieval | [Retrieval contract](docs/retrieval-contract.md) |
 | Understand guarantees | [Assurance boundaries](docs/assurance-matrix.md) |
 
-Current project version: `2.3.0`. [2.3.0 release notes](docs/2.3.0-release-notes.md#english) · [2.3.0 release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.3.0)
+Current project version: `2.4.0`. [2.4.0 release notes](docs/2.4.0-release-notes.md#english) · [2.4.0 release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.4.0)
 
 Formerly Code2KB Spec, **Code2KB Agent Toolkit** now uses `code2kb-agent-toolkit` for its repository and Python distribution; the command remains `code2kb`.
 

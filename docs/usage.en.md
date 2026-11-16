@@ -162,3 +162,24 @@ code2kb preflight --project-root /path/to/knowledge-project --module-id example.
 This read-only command checks the candidate structure, source baselines, catalogs, local links and static call matching. It also previews FAQ retrieval headings. It defers checking the actual targets of references to registered modules and the glossary. Invalid local structure, unregistered references and links that leave the knowledge source fail. Formal `prepare` still checks the actual targets, deployment evidence, question results and other project-wide gates.
 
 For a stable batch, obtain one global impact queue, actually review its findings, and confirm/prepare each module. After all writes, a successful global check with explicit `pending_claim_impacts: 0` replaces repeated final empty module impacts. Changed inputs invalidate old results. Follow the [English batch workflow](../skills/extract-app-knowledge/contracts/english-workflow.md#optional-batch-review); review and publication authorization remain required.
+
+## Optional authored UI behavior
+
+With 2.4+, an optional `## 界面交互规格` section in a module's internal `结构化规格.md` can hold a strict JSON `c2kb-ui/0.1` object. Keep that literal heading and machine fields, while authoring labels, conditions, meanings, guards and feedback in English. See the [full contract](ui-behavior-contract.md) and [frozen four-control fixture](../conformance/ui-behavior/README.md).
+
+1. Pin source revisions and register existing entries and verified facts first. Distinguish similarly named controls by scope and stable control IDs. Separate visible, enabled and busy dimensions; record only supported combinations.
+2. Author states/transitions against those facts. Include failed branches and unknown outcomes. Never infer service authorization from hiding, duplicate-submit protection from disabling, or storage/completion from a returned request.
+3. Run the read-only commands:
+
+```bash
+code2kb preflight --project-root /path/to/knowledge-project --module-id example.module
+code2kb render-ui-facts --project-root /path/to/knowledge-project --module-id example.module
+code2kb impact --project-root /path/to/knowledge-project --module-id example.module
+```
+
+4. Review `review_candidate` output for readable prose and actual source entailment, then merge the business/engineering snippets into existing allowed documents. The command does not edit documents, approve knowledge, publish or extract front-end behavior.
+5. Review impacted prose before `confirm-claims`, refresh the candidate with `prepare --refresh`, then follow the existing independent review, authorization and audited release/retrieval process. Final answers require a separate replay, not just a phrase check.
+
+UI changes, removal, and referenced navigation-entry changes require renewed impact review. Old published snapshots remain unchanged. Projects without the section need no migration; UI-enabled projects must use 2.4+ because older tools do not validate this extension or track its dependencies. The base file and retrieval formats are unchanged.
+
+The [bounded collection example](../conformance/collection-scope/README.md) separately distinguishes filtered matches, visible page, accumulated selection, batch targets and export targets using existing facts/prose and publication. It adds no collection object, schema, adapter or generic workflow engine.
