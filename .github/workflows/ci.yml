@@ -13,13 +13,16 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14", "3.15"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ matrix.python-version }}
       - name: Unit tests
@@ -54,15 +57,72 @@ jobs:
 
   plugin-packages:
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.15"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
           package-manager-cache: false
+      - name: Workflow syntax (Linux only)
+        env:
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          archive="$RUNNER_TEMP/actionlint_1.7.12_linux_amd64.tar.gz"
+          tools_dir="$RUNNER_TEMP/code2kb-actionlint"
+          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+            --tlsv1.2 --connect-timeout 10 --max-time 60 --retry 2 --retry-max-time 120 \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz \
+            --output "$archive"
+          printf '%s  %s\n' "$ACTIONLINT_SHA256" "$archive" | sha256sum --check --strict -
+          mkdir -p "$tools_dir"
+          tar -xzf "$archive" -C "$tools_dir" actionlint
+          "$tools_dir/actionlint"
+      - name: CI helper regression
+        run: python3 -B -m unittest discover -s .github/tests -q
       - name: Plugin packaging regression
         run: python3 -B -m unittest discover -s scripts -p test_package_plugins.py -q
       - name: Build and audit plugin packages
         run: python3 -B scripts/package_plugins.py --commit "$GITHUB_SHA" --output-dir "$RUNNER_TEMP/plugins"
+
+  macos-smoke:
+    runs-on: macos-15
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.15"
+      - name: Isolated install and real CLI smoke
+        env:
+          PYTHONPATH: ""
+          PYTHONNOUSERSITE: "1"
+        run: |
+          python -m venv "$RUNNER_TEMP/code2kb-smoke-venv"
+          source "$RUNNER_TEMP/code2kb-smoke-venv/bin/activate"
+          python -m pip install --disable-pip-version-check .
+          cd "$RUNNER_TEMP"
+          python -B "$GITHUB_WORKSPACE/.github/scripts/smoke_installed_cli.py" --source-root "$GITHUB_WORKSPACE"
+
+  ci-gate:
+    name: CI Gate
+    # A skipped/cancelled/failed dependency must never turn the aggregate green.
+    if: ${{ always() }}
+    needs: [test, plugin-packages, macos-smoke]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Require every CI job to succeed
+        env:
+          CI_NEEDS_JSON: ${{ toJSON(needs) }}
+        run: python3 -B .github/scripts/ci_gate.py
