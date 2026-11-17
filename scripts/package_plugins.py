@@ -4,9 +4,12 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import hashlib
 import io
 import json
 from pathlib import Path, PurePosixPath
+import re
 import shutil
 import subprocess
 import sys
@@ -33,6 +36,9 @@ FORBIDDEN = {
     ".git", ".DS_Store", "__pycache__", ".env", ".npmrc", ".code2kb",
     ".code2kb-public-denylist", "node_modules",
 }
+MANIFEST = "release-manifest.json"
+CHECKSUMS = "SHA256SUMS.txt"
+MANIFEST_FORMAT = "code2kb-release-manifest/1"
 
 
 def git(*args: str) -> bytes:
@@ -102,8 +108,55 @@ def build_zip(stage: Path, output: Path, target: str, version: str) -> Path:
     artifact = output / f"code2kb-{target}-{version}.zip"
     with zipfile.ZipFile(artifact, mode="x", compression=zipfile.ZIP_DEFLATED) as archive:
         for relative, path in staged_files(stage).items():
-            archive.writestr(relative, path.read_bytes())
+            # Do not inherit wall-clock time, file mtimes, permissions or host OS.
+            entry = zipfile.ZipInfo(relative, date_time=(1980, 1, 1, 0, 0, 0))
+            entry.create_system = 3
+            entry.external_attr = 0o100644 << 16
+            entry.compress_type = zipfile.ZIP_DEFLATED
+            archive.writestr(entry, path.read_bytes(), compresslevel=9)
     return artifact
+
+
+def artifact_record(path: Path) -> dict:
+    data = path.read_bytes()
+    return {
+        "filename": path.name,
+        "size": len(data),
+        "sha256": hashlib.sha256(data).hexdigest(),
+        "integrity": "sha512-" + base64.b64encode(hashlib.sha512(data).digest()).decode("ascii"),
+    }
+
+
+def build_release(commit: str, targets: tuple[str, ...], output: Path) -> list[Path]:
+    """Build once, then expose the complete bundle. Never overwrite old outputs."""
+    if output.exists() and (output.is_symlink() or not output.is_dir() or any(output.iterdir())):
+        raise ValueError("发布输出目录必须是新的或空的普通目录")
+    version = git("show", f"{commit}:VERSION").decode("utf-8").strip()
+    if not re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", version):
+        raise ValueError("本流程只接受 X.Y.Z 正式版本；不支持候选版本")
+    with tempfile.TemporaryDirectory(prefix="code2kb-release-") as temporary:
+        work = Path(temporary)
+        artifacts = {target: build(commit, target, work) for target in sorted(targets)}
+        manifest = {
+            "format": MANIFEST_FORMAT,
+            "version": version,
+            "source_commit": commit,
+            "artifacts": {target: artifact_record(path) for target, path in artifacts.items()},
+        }
+        manifest_path = work / MANIFEST
+        manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+        files = [*artifacts.values(), manifest_path]
+        (work / CHECKSUMS).write_text("".join(
+            f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n"
+            for path in sorted(files, key=lambda path: path.name)
+        ), encoding="ascii")
+        files.append(work / CHECKSUMS)
+        output.mkdir(parents=True, exist_ok=True)
+        # Exclusive writes are intentional: retries use a new output directory.
+        for path in files:
+            with path.open("rb") as source, (output / path.name).open("xb") as result:
+                shutil.copyfileobj(source, result)
+        return [output / path.name for path in files]
 
 
 def build(commit: str, target: str, output: Path) -> Path:
@@ -134,9 +187,9 @@ def main() -> int:
     try:
         commit = git("rev-parse", "--verify", "--end-of-options", f"{args.commit}^{{commit}}").decode().strip()
         output = args.output_dir.resolve()
-        output.mkdir(parents=True, exist_ok=True)
-        for target in HOSTS if args.target == "all" else (args.target,):
-            print(f"{target}: {build(commit, target, output)}")
+        targets = tuple(HOSTS) if args.target == "all" else (args.target,)
+        for artifact in build_release(commit, targets, output):
+            print(artifact)
     except (OSError, ValueError, KeyError, subprocess.CalledProcessError, tarfile.TarError) as exc:
         print(f"插件打包失败：{exc}", file=sys.stderr)
         return 1
