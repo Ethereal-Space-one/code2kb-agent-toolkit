@@ -1,0 +1,89 @@
+name: Release rehearsal (read only)
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/release-rehearsal.yml"
+      - "scripts/package_plugins.py"
+      - "scripts/test_package_plugins.py"
+      - "scripts/release_validation.py"
+      - "scripts/test_release_validation.py"
+      - "docs/release-process.md"
+  workflow_dispatch:
+    inputs:
+      reconcile_public_state:
+        description: "Also reconcile existing public npm/tag/release state (GET only; mismatches stop)"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-rehearsal-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bundle:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      manifest_sha256: ${{ steps.build.outputs.manifest_sha256 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - name: Packaging and reconciliation regressions
+        run: |
+          python3 -B -m unittest discover -s scripts -p test_package_plugins.py -q
+          python3 -B -m unittest discover -s scripts -p test_release_validation.py -q
+      - name: Build the three-archive rehearsal bundle once
+        id: build
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
+          BUNDLE: ${{ runner.temp }}/release-bundle
+        run: |
+          set -euo pipefail
+          python3 -B scripts/package_plugins.py --commit "$SOURCE_COMMIT" --output-dir "$BUNDLE"
+          digest=$(sha256sum "$BUNDLE/release-manifest.json" | cut -d ' ' -f 1)
+          python3 -B scripts/release_validation.py verify-bundle --bundle-dir "$BUNDLE" --expected-commit "$SOURCE_COMMIT" --manifest-sha256 "$digest"
+          printf 'manifest_sha256=%s\n' "$digest" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        id: upload
+        with:
+          name: release-rehearsal-${{ github.sha }}
+          path: ${{ runner.temp }}/release-bundle/
+          if-no-files-found: error
+          retention-days: 7
+
+  verify-uploaded-bundle:
+    needs: bundle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.bundle.outputs.artifact_id }}
+          path: ${{ runner.temp }}/downloaded-release-bundle
+      - name: Verify exact uploaded bytes against independent manifest digest
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
+          MANIFEST_SHA256: ${{ needs.bundle.outputs.manifest_sha256 }}
+          BUNDLE: ${{ runner.temp }}/downloaded-release-bundle
+        run: python3 -B scripts/release_validation.py verify-bundle --bundle-dir "$BUNDLE" --expected-commit "$SOURCE_COMMIT" --manifest-sha256 "$MANIFEST_SHA256"
+      - name: Optional GET-only registry and GitHub reconciliation
+        if: github.event_name == 'workflow_dispatch' && inputs.reconcile_public_state
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
+          MANIFEST_SHA256: ${{ needs.bundle.outputs.manifest_sha256 }}
+          BUNDLE: ${{ runner.temp }}/downloaded-release-bundle
+        run: python3 -B scripts/release_validation.py reconcile --bundle-dir "$BUNDLE" --expected-commit "$SOURCE_COMMIT" --manifest-sha256 "$MANIFEST_SHA256"
