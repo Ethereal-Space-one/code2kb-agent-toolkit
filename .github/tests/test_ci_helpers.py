@@ -64,6 +64,11 @@ class CIGateTest(unittest.TestCase):
         self.assertIn("needs: [" + ", ".join(gate.REQUIRED_JOBS) + "]", workflow)
         self.assertIn("if: ${{ always() }}", workflow)
 
+    def test_linux_syntax_check_discovers_all_workflows(self):
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        self.assertIn('          "$tools_dir/actionlint"\n', workflow)
+        self.assertIn('sha256sum --check --strict -', workflow)
+
 
 class InstalledSmokeTest(unittest.TestCase):
     def test_requires_the_real_completed_cli_envelope(self):
