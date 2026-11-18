@@ -250,7 +250,7 @@ Code and IDs in these diagrams illustrate the structure. The detail diagrams use
 | Import into retrieval | [Retrieval contract](docs/retrieval-contract.md) |
 | Understand guarantees | [Assurance boundaries](docs/assurance-matrix.md) |
 
-Current project version: `2.4.0`. [2.4.0 release notes](docs/2.4.0-release-notes.md#english) · [2.4.0 release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.4.0)
+Current project version: `2.4.1`. This patch changes how the toolkit is packaged and verified. Knowledge projects need no migration. [Release notes](docs/2.4.1-release-notes.md#english) · [2.4.1 release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.4.1). On npm, select `code2kb-dsh@2.4.1` explicitly; publishing this patch does not move `latest`.
 
 Formerly Code2KB Spec, **Code2KB Agent Toolkit** now uses `code2kb-agent-toolkit` for its repository and Python distribution; the command remains `code2kb`.
 
