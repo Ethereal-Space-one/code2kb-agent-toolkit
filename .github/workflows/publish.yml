@@ -1,4 +1,4 @@
-name: Publish npm
+name: Publish verified release
 
 on:
   push:
@@ -7,56 +7,353 @@ on:
 permissions:
   contents: read
 
+# Serialize across versions. A newer pending run can replace a pending run; arm one tag at a time.
 concurrency:
-  group: npm-publish-${{ github.ref }}
+  group: code2kb-production-release
+  cancel-in-progress: false
 
 jobs:
   verify:
     uses: ./.github/workflows/ci.yml
+    with:
+      release_handoff: true
 
   package:
     needs: verify
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      version: ${{ steps.build.outputs.version }}
+      manifest_sha256: ${{ steps.build.outputs.manifest_sha256 }}
+      sums_sha256: ${{ steps.build.outputs.sums_sha256 }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
           package-manager-cache: false
-      - name: Verify release ref
+      - name: Require a new, explicitly armed release tag on reviewed main
+        env:
+          ARMED: ${{ vars.RELEASE_ARMED_REF }}
+          NEW_TAG: ${{ github.event.created && !github.event.deleted && !github.event.forced }}
         run: |
-          test "v$(cat VERSION)" = "${GITHUB_REF#refs/tags/}"
-          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
-      - name: Build and audit npm package
-        run: python3 -B scripts/package_plugins.py --commit "$GITHUB_SHA" --target dsh --output-dir "$RUNNER_TEMP/package"
-      - uses: actions/upload-artifact@v4
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "Ethereal-Space-one/code2kb-agent-toolkit"
+          test "$GITHUB_EVENT_NAME" = push && test "$GITHUB_REF_TYPE" = tag
+          test "$NEW_TAG" = true && test "$GITHUB_RUN_ATTEMPT" = 1
+          test "$GITHUB_REF_NAME" = "v$(cat VERSION)"
+          test "$ARMED" = "$GITHUB_REF_NAME@$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse "$GITHUB_REF^{commit}")" = "$GITHUB_SHA"
+          git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main
+          python3 -c 'import pathlib,re; v=pathlib.Path("VERSION").read_text().strip(); assert re.fullmatch(r"(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*)){2}",v) and tuple(map(int,v.split(".")))>(2,4,0)'
+      - name: Build once and independently seal the exact five files
+        id: build
+        env:
+          BUNDLE: ${{ runner.temp }}/release-bundle
+        run: |
+          set -euo pipefail
+          v=$(cat VERSION)
+          test -s "docs/$v-release-notes.md"
+          python3 -B scripts/package_plugins.py --commit "$GITHUB_SHA" --output-dir "$BUNDLE"
+          digest=$(sha256sum "$BUNDLE/release-manifest.json" | cut -d ' ' -f 1)
+          sums=$(sha256sum "$BUNDLE/SHA256SUMS.txt" | cut -d ' ' -f 1)
+          python3 -B scripts/release_validation.py verify-bundle --bundle-dir "$BUNDLE" --expected-commit "$GITHUB_SHA" --manifest-sha256 "$digest"
+          printf 'version=%s\nmanifest_sha256=%s\nsums_sha256=%s\n' "$v" "$digest" "$sums" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        id: upload
         with:
-          name: audited-npm-package
-          path: ${{ runner.temp }}/package/code2kb-dsh-*.tgz
+          name: production-release-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/release-bundle/
           if-no-files-found: error
+          retention-days: 7
 
-  publish:
+  github-preflight:
+    if: &armed_release >-
+      github.repository == 'Ethereal-Space-one/code2kb-agent-toolkit' &&
+      github.event_name == 'push' && github.ref_type == 'tag' &&
+      github.event.created && !github.event.deleted && !github.event.forced &&
+      github.run_attempt == 1 && vars.RELEASE_ARMED_REF == format('{0}@{1}', github.ref_name, github.sha)
     needs: package
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    # GitHub only lists private drafts for push-capable callers. This job makes GETs only.
+    permissions:
+      contents: write
+    steps:
+      - name: Confirm no existing release or hidden draft
+        id: no_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.package.outputs.version }}
+        run: &no_release |
+          # Only authenticated users with push access can enumerate draft releases.
+          # A public GET returning 404 is not evidence that a draft doesn't exist.
+          python3 -I - <<'GUARD'
+          import json, os, subprocess
+          repo = "repos/Ethereal-Space-one/code2kb-agent-toolkit"
+          def read(endpoint):
+              return json.loads(subprocess.check_output(["gh","api",endpoint]))
+          assert read(repo)["permissions"]["push"] is True, "draft visibility not established"
+          pages = json.loads(subprocess.check_output(["gh","api","--paginate","--slurp",repo+"/releases?per_page=100"]))
+          assert isinstance(pages,list) and pages and all(isinstance(p,list) for p in pages)
+          assert not any(r["tag_name"] == "v"+os.environ["VERSION"] for page in pages for r in page), "existing release or draft: do not adopt, modify or upload"
+          GUARD
+
+  npm:
+    if: *armed_release
+    needs: [package, github-preflight]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     environment: npm-release
     permissions:
       id-token: write
+    env: &artifact_env
+      BUNDLE: ${{ github.workspace }}/downloaded-release-bundle
+      VERSION: ${{ needs.package.outputs.version }}
+      SOURCE_COMMIT: ${{ github.sha }}
+      MANIFEST_SHA256: ${{ needs.package.outputs.manifest_sha256 }}
+      SUMS_SHA256: ${{ needs.package.outputs.sums_sha256 }}
     steps:
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
-          registry-url: "https://registry.npmjs.org"
           package-manager-cache: false
-      - uses: actions/download-artifact@v4
+      - &id_guard
+        name: Require exact immutable artifact ID (never download all)
+        env:
+          ARTIFACT_ID: ${{ needs.package.outputs.artifact_id }}
+        run: '[[ "$ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]'
+      - &download
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: audited-npm-package
-          path: ${{ runner.temp }}/package
-      - name: Publish audited tarball using Trusted Publishing
+          artifact-ids: ${{ needs.package.outputs.artifact_id }}
+          path: ${{ github.workspace }}/downloaded-release-bundle
+      - &verify
+        name: Verify exact bundle and read reviewed notes as inert data
+        id: verify_download
         run: |
-          shopt -s nullglob
-          packages=("$RUNNER_TEMP"/package/code2kb-dsh-*.tgz)
-          test "${#packages[@]}" -eq 1
-          npm publish "${packages[0]}" --ignore-scripts --provenance
+          # No checkout, extracted code, dependency installation or lifecycle scripts.
+          python3 -I - <<'VERIFY'
+          from pathlib import Path
+          import base64, hashlib, json, os, re, tarfile, zipfile
+          p = Path(os.environ["BUNDLE"])
+          v, sha = os.environ["VERSION"], os.environ["SOURCE_COMMIT"]
+          assert re.fullmatch(r"(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*)){2}", v)
+          assert re.fullmatch(r"[0-9a-f]{40}", sha)
+          files = {k: f"code2kb-{k}-{v}." + ("tgz" if k == "dsh" else "zip") for k in ("claude", "codex", "dsh")}
+          manifest, sums = "release-manifest.json", "SHA256SUMS.txt"
+          assert {x.name for x in p.iterdir()} == {*files.values(), manifest, sums}
+          assert all(x.is_file() and not x.is_symlink() for x in p.iterdir())
+          digest = lambda data: hashlib.sha256(data).hexdigest()
+          def record(name):
+              data = (p / name).read_bytes()
+              return {"filename": name, "size": len(data), "sha256": digest(data),
+                      "integrity": "sha512-" + base64.b64encode(hashlib.sha512(data).digest()).decode()}
+          m = (p / manifest).read_bytes()
+          assert digest(m) == os.environ["MANIFEST_SHA256"]
+          assert json.loads(m) == {"format": "code2kb-release-manifest/1", "version": v, "source_commit": sha,
+                                   "artifacts": {k: record(n) for k, n in files.items()}}
+          expected = "".join(f"{record(n)['sha256']}  {n}\n" for n in sorted([*files.values(), manifest])).encode()
+          assert (p / sums).read_bytes() == expected and digest(expected) == os.environ["SUMS_SHA256"]
+          with tarfile.open(p / files["dsh"], "r:gz") as t:
+              pkg = json.load(t.extractfile("package/package.json"))
+              assert (pkg["name"], pkg["version"], pkg["gitHead"]) == ("code2kb-dsh", v, sha)
+              assert pkg.get("publishConfig", {}) in ({}, {"access": "public"}) and not pkg.get("scripts") and "private" not in pkg
+          with zipfile.ZipFile(p / files["claude"]) as z:
+              notes = z.read(f"docs/{v}-release-notes.md")
+              assert 0 < len(notes) <= 125000 and notes.decode("utf-8").strip()
+              (Path(os.environ["RUNNER_TEMP"]) / "release-notes.md").write_bytes(notes)
+          print("Verified both independent digests, source, names, five files and reviewed notes.")
+          VERIFY
+      - &locked_tag
+        name: Require live tag and operator authorization for this commit
+        id: check_tag
+        env:
+          ARMED: ${{ vars.RELEASE_ARMED_REF }}
+        run: |
+          test "$ARMED" = "v$VERSION@$SOURCE_COMMIT" && test "$GITHUB_RUN_ATTEMPT" = 1 || exit 1
+          set -euo pipefail
+          # Lightweight or annotated: require the live, peeled commit (not just tag existence).
+          tag="refs/tags/v$VERSION"
+          remote=$(git ls-remote --exit-code https://github.com/Ethereal-Space-one/code2kb-agent-toolkit.git "$tag" "$tag^{}")
+          peeled=$(awk -v tag="$tag" '$2==tag {direct=$1} $2==tag"^{}" {peeled=$1} END {if(!direct)exit 1; print (peeled?peeled:direct)}' <<<"$remote")
+          test "$peeled" = "$SOURCE_COMMIT"
+      - name: Reconcile npm and publish once with OIDC if absent
+        id: npm_write
+        env:
+          npm_config_fetch_retries: "0"
+        run: |
+          python3 -I - <<'PUBLISH'
+          import hashlib, json, os, re, subprocess, tempfile, time
+          from pathlib import Path
+          bundle = Path(os.environ["BUNDLE"])
+          v, commit = os.environ["VERSION"], os.environ["SOURCE_COMMIT"]
+          name, origin = "code2kb-dsh", "https://registry.npmjs.org"
+          record = json.loads((bundle/"release-manifest.json").read_bytes())["artifacts"]["dsh"]
+          archive = bundle / record["filename"]
+          dist_tag = "release-"+v  # Never write latest; promotion is a separate operator decision.
+          tar_url = f"{origin}/{name}/-/{name}-{v}.tgz"
+          class UncertainRead(RuntimeError):
+              pass
+          def get(url, may_miss=False, limit=2000000):
+              with tempfile.NamedTemporaryFile() as f:
+                  status = subprocess.check_output(["curl","--disable","--silent","--show-error","--proto","=https",
+                      "--connect-timeout","8","--max-time","30","--max-filesize",str(limit),
+                      "--output",f.name,"--write-out","%{http_code}",url], text=True)
+                  if status == "404" and may_miss:
+                      return None
+                  if status in ("404","429","500","502","503","504"):
+                      raise UncertainRead("registry GET status "+status)
+                  assert status == "200", f"registry GET status {status}: do not infer absence"
+                  data = Path(f.name).read_bytes()
+                  assert len(data) <= limit
+                  return data
+          def tags():
+              obj = json.loads(get(f"{origin}/-/package/{name}/dist-tags"))
+              assert isinstance(obj,dict) and all(isinstance(x,str) for x in obj.values())
+              latest = obj["latest"]
+              assert re.fullmatch(r"(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*)){2}",latest)
+              assert obj.get(dist_tag) in (None,v), "version-specific tag points elsewhere"
+              return latest, obj.get(dist_tag)
+          def published():
+              raw = get(f"{origin}/{name}/{v}",True)
+              if raw is None:
+                  return False
+              p = json.loads(raw)
+              assert (p["name"],p["version"],p["gitHead"],p["dist"]["integrity"],p["dist"]["tarball"]) == (
+                  name,v,commit,record["integrity"],tar_url), "published metadata differs"
+              body = get(tar_url,limit=record["size"])
+              assert len(body) == record["size"] and hashlib.sha256(body).hexdigest() == record["sha256"]
+              return True
+          latest, channel = tags()
+          exists = published()
+          assert tags() == (latest,channel), "registry state changed while checking"
+          if exists:
+              assert channel == v, "matching version but missing its release tag; do not repair"
+              print("Existing npm archive and version-specific tag match. No write.")
+          else:
+              assert channel is None and tuple(map(int,v.split("."))) > tuple(map(int,latest.split("."))), "unsafe version or channel"
+              assert not any(os.environ.get(k) for k in ("NODE_AUTH_TOKEN","NPM_TOKEN","NPM_CONFIG__AUTH")), "refuse token fallback"
+              semver = subprocess.check_output(["npm","--version"],text=True).strip()
+              assert tuple(map(int,semver.split("."))) >= (11,5,1), "npm with Trusted Publishing required"
+              # Exactly one attempt. An ambiguous exit can only trigger reads, never another publish.
+              try:
+                  rc = subprocess.run(["npm","publish",str(archive),"--ignore-scripts","--provenance","--access=public",
+                                   "--registry="+origin,"--tag="+dist_tag], check=False, timeout=180).returncode
+              except subprocess.TimeoutExpired:
+                  rc = "timeout"
+              for i in range(4):
+                  try:
+                      present = published()
+                      now, bound = tags()
+                      assert now == latest, "latest changed during publication; stop"
+                      if present and bound == v:
+                          print(f"Verified registry bytes and release tag after one publish (exit {rc}).")
+                          break
+                  except (UncertainRead, subprocess.CalledProcessError) as transient:
+                      print(f"GET-only reconciliation pending: {transient}", flush=True)
+                  if i != 3:
+                      time.sleep(2**i)
+              else:
+                  raise SystemExit("Unconfirmed npm result. Stop; reconcile manually without retrying publication.")
+          PUBLISH
+
+  github-release:
+    if: *armed_release
+    needs: [package, npm]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env: *artifact_env
+    steps:
+      - *id_guard
+      - *download
+      - *verify
+      - *locked_tag
+      - name: Recheck authenticated draft and release inventory before creation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: *no_release
+      - name: Verify a new draft by ID before publishing, then verify public bytes
+        id: github_write
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Create only a new draft; its numeric ID, not the tag or name, owns this upload.
+          python3 -I - <<'RELEASE'
+          from pathlib import Path
+          import hashlib, json, os, re, subprocess
+          root = Path(os.environ["BUNDLE"])
+          v, sha = os.environ["VERSION"], os.environ["SOURCE_COMMIT"]
+          tag, repo = "v"+v, "repos/Ethereal-Space-one/code2kb-agent-toolkit"
+          notes = (Path(os.environ["RUNNER_TEMP"])/"release-notes.md").read_text(encoding="utf-8")
+          def gh(*args, body=None, raw=False):
+              cmd = ["gh","api",*args]
+              if body is not None:
+                  cmd.extend(["--input","-"])
+              data = subprocess.check_output(cmd,input=None if body is None else json.dumps(body).encode())
+              return data if raw else json.loads(data)
+          def same_tag():
+              obj = gh(repo+"/git/ref/tags/"+tag)["object"]
+              for _ in range(5):
+                  assert re.fullmatch(r"[0-9a-f]{40}",obj["sha"])
+                  if obj["type"] == "commit":
+                      assert obj["sha"] == sha, "release tag moved"
+                      return
+                  assert obj["type"] == "tag"
+                  obj = gh(repo+"/git/tags/"+obj["sha"])["object"]
+              raise ValueError("unresolved tag")
+          def unique_release(draft, rid):
+              current = gh(repo+f"/releases/{rid}")
+              assert (current["id"],current["tag_name"],current["draft"],current["prerelease"],current["name"],current["body"]) == (rid,tag,draft,False,tag,notes)
+              return current
+          def verify_assets(rid):
+              assets = gh("--paginate","--slurp",repo+f"/releases/{rid}/assets?per_page=100")
+              assert isinstance(assets,list) and assets and all(isinstance(page,list) for page in assets)
+              items = [a for page in assets for a in page]
+              assert sorted(a["name"] for a in items) == sorted(p.name for p in root.iterdir())
+              for a in items:
+                  p = root/a["name"]
+                  aid = a["id"]
+                  assert type(aid) is int and aid > 0 and a["state"] == "uploaded"
+                  assert a["size"] == p.stat().st_size and a["digest"] == "sha256:"+hashlib.sha256(p.read_bytes()).hexdigest()
+                  assert gh("-H","Accept: application/octet-stream",repo+f"/releases/assets/{aid}",raw=True) == p.read_bytes()
+          same_tag()
+          created = gh("--method","POST",repo+"/releases",body={"tag_name":tag,"target_commitish":sha,"name":tag,
+              "body":notes,"draft":True,"prerelease":False,"make_latest":"false"})
+          rid = created["id"]
+          assert type(rid) is int and rid > 0
+          assert created["tag_name"] == tag and created["draft"] is True and created["assets"] == []
+          endpoint = repo+f"/releases/{rid}"
+          print(f"New draft ID {rid}; on failure leave it untouched for the operator.",flush=True)
+          unique_release(True,rid)
+          for p in sorted(root.iterdir()):
+              # The endpoint, asset ID and basename are never taken from an arbitrary upload URL.
+              url = f"https://uploads.github.com/{repo}/releases/{rid}/assets?name={p.name}"
+              # No redirects, auth on argv, retries, tag lookup or --clobber.
+              with (Path(os.environ["RUNNER_TEMP"])/"upload-result.json").open("w+b") as response:
+                  status = subprocess.check_output(["curl","--disable","--silent","--show-error","--proto","=https",
+                      "--connect-timeout","8","--max-time","120","--request","POST","--header","@-",
+                      "--header","Content-Type: application/octet-stream","--data-binary","@"+str(p),
+                      "--output",response.name,"--write-out","%{http_code}",url],
+                      input=("Authorization: Bearer "+os.environ["GH_TOKEN"]+"\n").encode())
+                  assert status == b"201", "uncertain/failed upload; stop without retry"
+                  response.seek(0)
+                  result = json.load(response)
+              assert result["name"] == p.name and result["state"] == "uploaded" and result["size"] == p.stat().st_size
+          verify_assets(rid)
+          same_tag()
+          unique_release(True,rid)
+          published = gh("--method","PATCH",endpoint,body={"draft":False,"make_latest":"false"})
+          assert published["id"] == rid and published["draft"] is False
+          same_tag()
+          assert unique_release(False,rid)["immutable"] is True, "public release is NOT immutable; stop"
+          verify_assets(rid)
+          print(f"Verified public immutable {tag}, exact archive bytes and release notes (ID {rid}).")
+          RELEASE

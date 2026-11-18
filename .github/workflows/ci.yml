@@ -6,6 +6,12 @@ on:
   pull_request:
   workflow_dispatch:
   workflow_call:
+    inputs:
+      release_handoff:
+        description: "Tag workflow builds the audited final archives in its mandatory package job"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -88,6 +94,7 @@ jobs:
       - name: Plugin packaging regression
         run: python3 -B -m unittest discover -s scripts -p test_package_plugins.py -q
       - name: Build and audit plugin packages
+        if: ${{ !inputs.release_handoff }}
         run: python3 -B scripts/package_plugins.py --commit "$GITHUB_SHA" --output-dir "$RUNNER_TEMP/plugins"
 
   macos-smoke:
