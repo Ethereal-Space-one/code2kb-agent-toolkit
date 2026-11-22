@@ -159,6 +159,19 @@
       ]
     },
     {
+      "case_id": "retry-cleared-draft",
+      "query": "报送失败后清空内容 再点重试 按钮显示 失败提示",
+      "required_phrases": [
+        "重试按钮保持显示",
+        "点击重试会再次调用报送函数",
+        "不发起再次调用",
+        "原失败提示不变"
+      ],
+      "required_unknown_phrases": [
+        "没有验证实际服务是否处理或保存报送"
+      ]
+    },
+    {
       "case_id": "local",
       "query": "本地确认区域 提交 对话框",
       "required_phrases": [
