@@ -4,19 +4,44 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
+from pathlib import PurePosixPath
 
 try:
+    from ..evidence_snapshot import EvidenceError, git, safe_path
     from ..pinned_source import read_pinned_text
 except ImportError:  # Direct invocation of validation/knowledge.py.
+    from evidence_snapshot import EvidenceError, git, safe_path
     from pinned_source import read_pinned_text
+
+
+def read_uniapp_manifest(repository: dict[str, str], manifest_path: str, *,
+                         read_text: Callable[[dict[str, str], str], str | None] = read_pinned_text) -> tuple[str, str]:
+    # Compatibility: Git normalizes <commit>:./path relative to its configured
+    # repository directory. Normalize this argument, not stored evidence paths.
+    path = manifest_path
+    if path.startswith("./"):
+        path = PurePosixPath(manifest_path).as_posix()
+        if manifest_path.endswith(("/", "/.")) or not safe_path(path):
+            raise ValueError(f"UniApp 页面清单路径无效：{manifest_path}")
+        try:
+            # Git resolved the old :./path syntax from the configured
+            # directory, which need not be the checkout root.
+            prefix = git(repository["path"], "rev-parse", "--show-prefix").removesuffix(b"\n").decode("utf-8")
+        except (EvidenceError, UnicodeError) as exc:
+            raise ValueError(f"固定提交中找不到 UniApp 页面清单：{manifest_path}") from exc
+        path = prefix + path
+    if not safe_path(path):
+        raise ValueError(f"UniApp 页面清单路径无效：{manifest_path}")
+    text = read_text(repository, path)
+    if text is None:
+        raise ValueError(f"固定提交中找不到 UniApp 页面清单：{manifest_path}")
+    return path, text
 
 
 def read_uniapp_pages(repository: dict[str, str], manifest_path: str, *,
                       read_text: Callable[[dict[str, str], str], str | None] = read_pinned_text) -> set[str]:
-    text = read_text(repository, manifest_path)
-    if text is None:
-        raise ValueError(f"固定提交中找不到 UniApp 页面清单：{manifest_path}")
-    return parse_uniapp_pages(text, manifest_path)
+    path, text = read_uniapp_manifest(repository, manifest_path, read_text=read_text)
+    return parse_uniapp_pages(text, path)
 
 
 def parse_uniapp_pages(text: str, manifest_path: str) -> set[str]:

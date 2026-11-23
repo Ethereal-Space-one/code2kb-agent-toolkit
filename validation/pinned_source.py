@@ -3,19 +3,25 @@
 from __future__ import annotations
 
 import os
-import subprocess
+
+try:
+    from .evidence_snapshot import EvidenceError, decode_source_text, git, regular_blob_oid, safe_path
+except ImportError:  # Direct invocation of validation/knowledge.py.
+    from evidence_snapshot import EvidenceError, decode_source_text, git, regular_blob_oid, safe_path
 
 
 def read_pinned_text(repository: dict[str, str], path: str) -> str | None:
-    result = subprocess.run(
-        ["git", "-C", repository["path"], "show", f"{repository['commit']}:{path}"],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
-    return None if result.returncode else result.stdout
+    if not safe_path(path):
+        return None
+    repo = repository["path"]
+    try:
+        oid = regular_blob_oid(repo, repository["commit"], path)
+        text = decode_source_text(git(repo, "cat-file", "blob", oid))
+    except EvidenceError:
+        return None
+    # Preserve the reader's universal newlines; other Unicode separators are
+    # characters within the physical line used by the raw-byte snapshot.
+    return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
 class PinnedReads:
@@ -33,8 +39,8 @@ class PinnedReads:
         # The inventory reads its manifest first. Retain its line count for
         # later anchors without keeping the parsed source text in memory.
         text = read_pinned_text(repository, path)
-        if text is not None and "\x00" not in text:
-            self._line_counts[self._key(repository, path)] = len(text.splitlines())
+        if text is not None:
+            self._line_counts[self._key(repository, path)] = text.count("\n") + int(bool(text) and not text.endswith("\n"))
         return text
 
     def line_count(self, repository: dict[str, str], path: str) -> int | None:

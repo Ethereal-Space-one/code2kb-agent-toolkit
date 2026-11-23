@@ -34,7 +34,8 @@
       "validation/tests/test_knowledge.py::KnowledgeTests.test_semantic_quality_rejects_missing_field_closure"
     ],
     "C2KB-CONSISTENCY-006": [
-      "validation/tests/test_knowledge.py::KnowledgeTests.test_semantic_quality_rejects_failed_cross_document_review"
+      "validation/tests/test_knowledge.py::KnowledgeTests.test_semantic_quality_rejects_failed_cross_document_review",
+      "validation/tests/test_rule_precedence.py::RulePrecedenceTests.test_reader_pairs_each_condition_with_route_and_note"
     ],
     "C2KB-CONSISTENCY-007": [
       "validation/tests/test_knowledge.py::KnowledgeTests.test_semantic_quality_is_optional_and_reports_counts_when_enabled"

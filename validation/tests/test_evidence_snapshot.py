@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import hashlib
 import subprocess
 from pathlib import Path
 import tempfile
 import unittest
 
 from validation.evidence_snapshot import EvidenceError, snapshot, verify
+from validation.pinned_source import PinnedReads
+from validation.relation_upgrade_project import changed_paths
 
 
 class EvidenceSnapshotTests(unittest.TestCase):
@@ -53,6 +56,46 @@ class EvidenceSnapshotTests(unittest.TestCase):
         self.repositories["source"]["commit"] = self.head()
         with self.assertRaisesRegex(EvidenceError, "非普通"):
             snapshot("source:linked.java:1", self.repositories)
+
+    def test_lightweight_checks_and_snapshots_use_the_same_text_and_lines(self) -> None:
+        # One physical line may contain UI text with Unicode display separators.
+        path = "menu:rules.ts"
+        physical_lines = ["title = 'A\u2028B\u0085C';\r\n".encode(), b"allow = true;\r", b"finish()"]
+        (self.repo / path).write_bytes(b"".join(physical_lines))
+        (self.repo / "alias.ts").symlink_to(path)
+        (self.repo / "legacy.ts").write_bytes(b"old_encoding = '\xff';\n")
+        (self.repo / "binary.ts").write_bytes(b"a\0b")
+        (self.repo / "empty.ts").touch()
+        self.commit()
+        repo = self.repositories["source"]
+        repo["commit"] = self.head()
+        cache = PinnedReads()
+        for invalid in ("alias.ts", "legacy.ts", "binary.ts", "missing.ts"):
+            with self.subTest(invalid=invalid):
+                self.assertIsNone(cache.read_text(repo, invalid))
+                self.assertIsNone(cache.line_count(repo, invalid))
+                with self.assertRaises(EvidenceError):
+                    snapshot(f"source:{invalid}:1", self.repositories)
+        self.assertEqual(cache.line_count(repo, "empty.ts"), 0)
+        with self.assertRaisesRegex(EvidenceError, "越界"):
+            snapshot("source:empty.ts:1", self.repositories)
+        self.assertEqual(cache.line_count(repo, path), len(physical_lines))
+        for number, raw_line in enumerate(physical_lines, 1):
+            record = snapshot(f"source:{path}:{number}", self.repositories)
+            self.assertEqual(record["snippet_sha256"], hashlib.sha256(raw_line).hexdigest())
+        with self.assertRaisesRegex(EvidenceError, "越界"):
+            snapshot(f"source:{path}:4", self.repositories)
+
+    def test_literal_path_is_the_same_file_during_upgrade(self) -> None:
+        path = ":(literal)rules.ts"
+        (self.repo / path).write_bytes(b"export const count = 2;\n")
+        self.commit()
+        new_commit = self.head()
+        old = self.repositories["source"]
+        report = changed_paths(old, new_commit)[2]
+        record = snapshot(f"source:{path}:1", {"source": {**old, "commit": new_commit}})
+        self.assertEqual([(item["path"], item["new_blob_oid"]) for item in report],
+                         [(path, record["blob_oid"])])
 
     def test_tampered_excerpt_digest_is_rejected(self) -> None:
         record = snapshot("source:main.java:1-2", self.repositories)

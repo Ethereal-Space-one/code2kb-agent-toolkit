@@ -215,9 +215,27 @@ class KnowledgeTests(unittest.TestCase):
                 for role, paths in (("frontend", ("src/pages.json", "dummy.txt")), ("backend", ("dummy.txt",))):
                     repo = self.repos[role]
                     for path in paths:
-                        expected = ["git", "-C", repo["path"], "show", f"{repo['commit']}:{path}"]
-                        self.assertEqual(commands_run.count(expected), 1, expected)
+                        oid = subprocess.check_output(
+                            ["git", "-C", repo["path"], "rev-parse", f"{repo['commit']}:{path}"], text=True,
+                        ).strip()
+                        for arguments in (["--literal-pathspecs", "ls-tree", "--full-tree", "-z", repo["commit"], "--", path],
+                                          ["cat-file", "blob", oid]):
+                            expected = ["git", "-C", repo["path"], *arguments]
+                            self.assertEqual(commands_run.count(expected), 1, expected)
                 self.assertEqual(parse.call_count, inventory_count)
+
+    def test_verified_fact_cannot_cite_a_directory_listing(self) -> None:
+        spec = self.module / "结构化规格.md"
+        write(spec, spec.read_text(encoding="utf-8").replace(
+            "CODE_VERIFIED | frontend:dummy.txt:1", "CODE_VERIFIED | frontend:src:1"))
+        args = ("--module-id", "example.order.query")
+        for command in (("preflight", *args), ("confirm-claims", *args),
+                        ("prepare", *args, "--refresh", "--business-topics", "查询",
+                         "--business-unknowns", "运行表现", "--business-keywords", "查询")):
+            with self.subTest(action=command[0]):
+                result = self.run_cli(*command)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("固定提交中找不到文本证据：frontend:src:1", result.stderr)
 
     def test_prepare_reuses_absent_and_empty_inventory(self) -> None:
         arguments = ["knowledge.py", "prepare", "--project-root", str(self.project),
@@ -253,6 +271,25 @@ class KnowledgeTests(unittest.TestCase):
         core.verify_anchor("new:dummy.txt:2", config, cache, {"new"})
         with self.assertRaisesRegex(core.KnowledgeError, "行号越界"):
             core.verify_anchor("old:dummy.txt:2", config, cache, {"old"})
+
+    def test_cli_inventory_accepts_leading_dot_manifest_alias(self) -> None:
+        config_path = self.project / "知识库配置.json"
+        original = config_path.read_text(encoding="utf-8")
+        expected = self.run_cli("check")
+        self.assertEqual(expected.returncode, 0, expected.stderr)
+        for nested, manifest in (
+            (False, "./src/pages.json"), (False, "././src/./pages.json"),
+            (False, ".//src//pages.json"), (True, "./pages.json"), (True, "././pages.json"),
+        ):
+            with self.subTest(nested=nested, manifest=manifest):
+                config = json.loads(original)
+                if nested:
+                    config["repositories"]["frontend"]["path"] += "/src"
+                config["inventory_adapter"]["manifest_path"] = manifest
+                write(config_path, json.dumps(config, ensure_ascii=False))
+                actual = self.run_cli("check")
+                self.assertEqual(actual.returncode, 0, actual.stderr)
+                self.assertEqual(json.loads(actual.stdout), json.loads(expected.stdout))
 
     def test_inventory_reader_preserves_json_errors_and_empty_routes(self) -> None:
         from adapters.uniapp_pages import read_uniapp_pages

@@ -11,6 +11,7 @@
 - `compatibility-statement.template.json`：第三方兼容声明模板。
 - [ui-behavior](ui-behavior/README.md)：四个作者登记控件、固定事实、候选生成与发布/维护生命周期，不代表运行时验证。
 - [collection-scope](collection-scope/README.md)：自编有界订单集合、精确目标真值及既有发布/检索/组装传递测试，不代表生产应用或回答模型质量。
+- [rule-precedence](rule-precedence/README.md)：两条规则同时命中时，核对结果与仍保留的动作；包括不看重叠就分辨不了的两个错解。
 
 ## 运行
 
