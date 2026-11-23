@@ -6,7 +6,7 @@ from pathlib import PurePosixPath
 import re
 import subprocess
 
-from .uniapp_pages import read_uniapp_pages
+from .uniapp_pages import parse_uniapp_pages, read_uniapp_manifest
 
 
 MAX_FILES = 20000
@@ -42,7 +42,7 @@ def scan(repository_id: str, repository: dict, *, uniapp_manifest: str | None = 
          scope: str | None = None) -> dict:
     repo, revision = repository["path"], repository["commit"]
     commit = git(repo, "rev-parse", "--verify", f"{revision}^{{commit}}").decode("ascii").strip()
-    entries = [value for value in git(repo, "ls-tree", "-r", "-z", commit).split(b"\0") if value]
+    entries = [value for value in git(repo, "ls-tree", "--full-name", "-r", "-z", commit).split(b"\0") if value]
     if scope:
         selected = []
         for entry in entries:
@@ -72,10 +72,11 @@ def scan(repository_id: str, repository: dict, *, uniapp_manifest: str | None = 
         if len(raw) > MAX_BYTES or b"\0" in raw:
             continue
         try:
-            body = raw.decode("utf-8")
+            # Match snapshot/verifier physical lines, not Unicode display separators.
+            lines = [line.decode("utf-8") for line in raw.splitlines()]
         except UnicodeError:
             continue
-        for number, line in enumerate(body.splitlines(), start=1):
+        for number, line in enumerate(lines, start=1):
             if path.endswith(".java"):
                 for match in JAVA_ANNOTATION.finditer(line):
                     literal = JAVA_LITERAL.search(match[1])
@@ -91,18 +92,15 @@ def scan(repository_id: str, repository: dict, *, uniapp_manifest: str | None = 
                 for match in TS_DYNAMIC.finditer(line):
                     results.append(candidate(repository_id, path, number, "typescript_dynamic_path", match[1].strip(), "unresolved"))
     if uniapp_manifest:
-        routes = read_uniapp_pages(repository, uniapp_manifest)
-        raw = git(repo, "show", f"{commit}:{uniapp_manifest}")
-        try:
-            manifest_text = raw.decode("utf-8")
-        except UnicodeError as exc:
-            raise CandidateError("UniApp 页面清单不是 UTF-8") from exc
+        uniapp_manifest, manifest_text = read_uniapp_manifest({**repository, "commit": commit}, uniapp_manifest)
+        routes = parse_uniapp_pages(manifest_text, uniapp_manifest)
+        manifest_lines = manifest_text.split("\n")
         for route in sorted(routes):
             parts = route.split("/")
             line_number = None
             for offset in range(len(parts)):
                 needle = "/".join(parts[offset:])
-                matches = [number for number, line in enumerate(manifest_text.splitlines(), 1) if f'"{needle}"' in line]
+                matches = [number for number, line in enumerate(manifest_lines, 1) if f'"{needle}"' in line]
                 if len(matches) == 1:
                     line_number = matches[0]
                     break

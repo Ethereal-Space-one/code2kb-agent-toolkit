@@ -20,9 +20,9 @@ class EvidenceError(ValueError):
 
 def safe_path(value: str) -> bool:
     path = PurePosixPath(value)
-    return bool(value) and not path.is_absolute() and path.as_posix() == value and all(
+    return bool(path.parts) and not path.is_absolute() and path.as_posix() == value and all(
         part not in {"", ".", ".."} for part in path.parts
-    ) and "\\" not in value and ":" not in value
+    ) and "\\" not in value and "\x00" not in value and not re.match(r"^[A-Za-z]:/", value)
 
 
 def git(repo: str, *args: str) -> bytes:
@@ -46,14 +46,9 @@ def parse_anchor(anchor: str) -> tuple[str, str, int, int]:
     return role, path, start, end
 
 
-def snapshot(anchor: str, repositories: dict) -> dict:
-    role, path, start, end = parse_anchor(anchor)
-    settings = repositories.get(role)
-    if not isinstance(settings, dict) or not settings.get("path") or not settings.get("commit"):
-        raise EvidenceError("源码锚点仓库未配置")
-    repo = settings["path"]
-    commit = git(repo, "rev-parse", "--verify", f"{settings['commit']}^{{commit}}").decode("ascii").strip()
-    listing = git(repo, "ls-tree", "-z", commit, "--", path)
+def regular_blob_oid(repo: str, commit: str, path: str) -> str:
+    """Resolve a literal tree entry; symlink payloads and tree listings are not source."""
+    listing = git(repo, "--literal-pathspecs", "ls-tree", "--full-tree", "-z", commit, "--", path)
     rows = [row for row in listing.split(b"\0") if row]
     if len(rows) != 1:
         raise EvidenceError("固定提交中找不到唯一源码文件")
@@ -65,13 +60,28 @@ def snapshot(anchor: str, repositories: dict) -> dict:
         raise EvidenceError("Git 源码对象信息无效") from exc
     if actual_path != path or mode not in {"100644", "100755"} or kind != "blob" or not OID.fullmatch(oid):
         raise EvidenceError("源码路径指向非普通文本文件")
-    raw = git(repo, "cat-file", "blob", oid)
+    return oid
+
+
+def decode_source_text(raw: bytes) -> str:
     if b"\0" in raw:
         raise EvidenceError("源码对象不是文本文件")
     try:
-        raw.decode("utf-8")
+        return raw.decode("utf-8")
     except UnicodeError as exc:
         raise EvidenceError("源码对象不是 UTF-8 文本") from exc
+
+
+def snapshot(anchor: str, repositories: dict) -> dict:
+    role, path, start, end = parse_anchor(anchor)
+    settings = repositories.get(role)
+    if not isinstance(settings, dict) or not settings.get("path") or not settings.get("commit"):
+        raise EvidenceError("源码锚点仓库未配置")
+    repo = settings["path"]
+    commit = git(repo, "rev-parse", "--verify", f"{settings['commit']}^{{commit}}").decode("ascii").strip()
+    oid = regular_blob_oid(repo, commit, path)
+    raw = git(repo, "cat-file", "blob", oid)
+    decode_source_text(raw)
     lines = raw.splitlines(keepends=True)
     if end > len(lines):
         raise EvidenceError("源码锚点行号越界")

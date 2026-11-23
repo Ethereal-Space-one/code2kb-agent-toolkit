@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -8,6 +9,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from validation.evidence_snapshot import snapshot
 from validation.adapters.ts_java import scan
 from validation.adapters.platform import scan as scan_platform
 from validation.adapters.sdk import validate_result
@@ -53,6 +55,60 @@ class CandidateAdapterTests(unittest.TestCase):
             invalid_edge["edges"] = [dict(first["edges"][0], evidence=["wrong:anchor:1", first["edges"][0]["evidence"][1]])]
             with self.assertRaisesRegex(ValueError, "桥接关系"):
                 validate_result(invalid_edge)
+
+    def test_lexical_and_manifest_candidates_match_snapshot_physical_lines(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            repo = Path(temporary)
+            subprocess.run(["git", "init", "-q", str(repo)], check=True)
+            fixture = {"api.ts": ["// Wrapped text: a\u2028b", "const request = {url: '/orders'};"],
+                       "pages.json": ['{"title":"a\u2028b",', '"pages":[{"path":"pages/orders"}]}']}
+            for path, lines in fixture.items():
+                (repo / path).write_bytes("\r\n".join(lines).encode())
+            subprocess.run(["git", "-C", str(repo), "add", "."], check=True)
+            subprocess.run(["git", "-C", str(repo), "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+                            "commit", "-q", "-m", "physical line fixture"], check=True)
+            commit = subprocess.check_output(["git", "-C", str(repo), "rev-parse", "HEAD"], text=True).strip()
+            settings = {"path": str(repo), "commit": commit}
+            report = scan("source", settings, uniapp_manifest="pages.json")
+            self.assertEqual({item["anchor"] for item in report["candidates"]},
+                             {"source:api.ts:2", "source:pages.json:2"})
+            for item in report["candidates"]:
+                excerpt = snapshot(item["anchor"], {"source": settings})
+                self.assertEqual(excerpt["snippet_sha256"], hashlib.sha256(fixture[item["source_path"]][1].encode()).hexdigest())
+            for adapter in (scan, scan_platform):
+                expected = adapter("source", settings, uniapp_manifest="pages.json")
+                self.assertTrue(any(item["kind"] == "uniapp_route" for item in expected["candidates"]))
+                for prefix in ("./", "././"):
+                    with self.subTest(adapter=adapter.__module__, prefix=prefix):
+                        actual = adapter("source", settings, uniapp_manifest=prefix + "pages.json")
+                        self.assertEqual(actual, expected)
+                for bad_alias in ("./../pages.json", "./pages.json/", "./pages.json/."):
+                    with self.assertRaisesRegex(ValueError, "UniApp 页面清单"):
+                        adapter("source", settings, uniapp_manifest=bad_alias)
+
+    def test_manifest_alias_from_subdirectory_cites_nested_file_not_root_twin(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            repo = Path(temporary)
+            subprocess.run(["git", "init", "-q", str(repo)], check=True)
+            nested = repo / "nested"
+            nested.mkdir()
+            (repo / "pages.json").write_text('{"pages":[{"path":"pages/root"}]}', encoding="utf-8")
+            (nested / "pages.json").write_text('{"pages":[{"path":"pages/nested"}]}', encoding="utf-8")
+            subprocess.run(["git", "-C", str(repo), "add", "."], check=True)
+            subprocess.run(["git", "-C", str(repo), "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+                            "commit", "-q", "-m", "canonical manifest fixture"], check=True)
+            commit = subprocess.check_output(["git", "-C", str(repo), "rev-parse", "HEAD"], text=True).strip()
+            settings = {"path": str(nested), "commit": commit}
+            for adapter in (scan, scan_platform):
+                with self.subTest(adapter=adapter.__module__):
+                    report = adapter("source", settings, uniapp_manifest="././pages.json")
+                    self.assertTrue(all(item["source_path"] == "nested/pages.json" for item in report["candidates"]))
+                    routes = [item for item in report["candidates"] if item["kind"] == "uniapp_route"]
+                    self.assertEqual([(item["expression"], item["anchor"]) for item in routes],
+                                     [("pages/nested", "source:nested/pages.json:1")])
+                    snapshot(routes[0]["anchor"], {"source": settings})
+                    scoped = adapter("source", settings, scope="nested/pages.json", uniapp_manifest=".//./pages.json")
+                    self.assertEqual(scoped["candidates"], report["candidates"])
 
     def test_fixed_commit_candidates_and_unresolved_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

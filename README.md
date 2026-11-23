@@ -61,9 +61,9 @@ AI 沿代码整理功能、流程、限制和问答；`code2kb` 检查证据记�
 
 | 宿主 | 安装方式 |
 | --- | --- |
-| DeepSeek Harness | 在插件页搜索 `code2kb-dsh`，或运行 `dsh plugin --profile desktop add code2kb-dsh` |
-| Claude Code | 从含插件清单的检出启动 `claude --plugin-dir .` |
-| Codex | 从含插件清单的检出运行 `codex plugin marketplace add .`，再运行 `codex plugin add code2kb@code2kb` |
+| DeepSeek Harness | 正式版：`dsh plugin --profile desktop add code2kb-dsh@2.4.1`。验证未发布的 Skill 请安装目标提交构建的本地包 |
+| Claude Code | 从目标提交的干净检出启动 `claude --plugin-dir .` |
+| Codex | 从目标提交的干净检出运行 `codex plugin marketplace add .`，再运行 `codex plugin add code2kb@code2kb` |
 
 在新会话中请 Agent 用 Code2KB 提取源码知识。插件内置 Skill 和 CLI，运行仍需要 Git 和 Python 3.9+。参见[插件安装与打包](docs/plugin-installation.md)。
 

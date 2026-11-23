@@ -13,7 +13,7 @@ except ImportError:
 
 
 def _blob(repo: str, commit: str, path: str) -> str | None:
-    rows = [part for part in git(repo, "ls-tree", "-z", commit, "--", path).split(b"\0") if part]
+    rows = [part for part in git(repo, "--literal-pathspecs", "ls-tree", "--full-tree", "-z", commit, "--", path).split(b"\0") if part]
     if not rows:
         return None
     if len(rows) != 1:

@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import patch
 
 import package_plugins
+from verify_installed_skill import SKILL, verify_installed_skill
 
 
 class PackagePluginsTest(unittest.TestCase):
@@ -63,6 +64,38 @@ class PackagePluginsTest(unittest.TestCase):
         alias = self.work / "staging-alias"
         alias.symlink_to(self.stage, target_is_directory=True)
         self.assertEqual(package_plugins.check_markdown_links(alias), 0)
+
+    def test_installed_instructions_match_the_commit_not_the_version_or_worktree(self):
+        source = self.repo / SKILL
+        target = self.stage / SKILL
+        for base in (source, target):
+            (base / "contracts").mkdir(parents=True)
+            (base / "SKILL.md").write_text("unchanged router\n", encoding="utf-8")
+            (base / "contracts/extract.md").write_text("review conditions\n", encoding="utf-8")
+        revision = self.commit()
+        self.assertEqual(verify_installed_skill(self.repo, revision, self.stage), (revision, 2))
+        for base in (source, target):
+            # Both the worktree and the installed copy now differ from Git.
+            (base / "contracts/extract.md").write_text("old instructions\n", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "changed: contracts/extract.md"):
+            verify_installed_skill(self.repo, revision, self.stage)
+        (target / "contracts/extract.md").unlink()
+        (target / "extra.md").touch()
+        with self.assertRaises(ValueError) as result:
+            verify_installed_skill(self.repo, revision, self.stage)
+        self.assertIn("missing: contracts/extract.md", str(result.exception))
+        self.assertIn("unexpected: extra.md", str(result.exception))
+
+    def test_installed_instruction_symlink_is_not_evidence(self):
+        source = self.repo / SKILL
+        target = self.stage / SKILL
+        for base in (source, target):
+            base.mkdir(parents=True)
+        (source / "SKILL.md").touch()
+        revision = self.commit()
+        (target / "SKILL.md").symlink_to(source / "SKILL.md")
+        with self.assertRaisesRegex(ValueError, "not a regular installed path: SKILL.md"):
+            verify_installed_skill(self.repo, revision, self.stage)
 
     def test_rejects_changed_npm_member(self):
         (self.stage / "guide.md").write_bytes(b"expected")

@@ -41,7 +41,7 @@ def identity(*parts: object) -> str:
 
 
 def _files(repo: str, commit: str, scope: str | None) -> tuple[list[tuple[str, int]], Counter]:
-    entries = [entry for entry in fixed_git(repo, "ls-tree", "-r", "-l", "-z", commit).split(b"\0") if entry]
+    entries = [entry for entry in fixed_git(repo, "ls-tree", "--full-name", "-r", "-l", "-z", commit).split(b"\0") if entry]
     selected: list[tuple[str, int]] = []
     skipped = Counter()
     in_scope = 0
