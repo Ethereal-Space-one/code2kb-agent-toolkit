@@ -51,13 +51,15 @@ The evaluated retrieval extension has its own audit path; consumers who split ba
 
 ## Install as a plugin
 
-| Host | Install |
-| --- | --- |
-| DeepSeek Harness | Release: `dsh plugin --profile desktop add code2kb-dsh@2.5.0`. To test unreleased instructions, install the tarball built from the target commit. |
-| Claude Code | Run `claude --plugin-dir .` from a clean checkout of the target commit |
-| Codex | Run `codex plugin marketplace add .` from a clean checkout of the target commit, then run `codex plugin add code2kb@code2kb` |
+Install the published [v2.4.1 release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.4.1). The 2.5.0 source on `main` is a candidate, not a downloadable release or npm package. Choose one host:
 
-Start a new session and ask the agent to extract source knowledge with Code2KB. The plugins bundle the skill and CLI and require Git and Python 3.9+. See [plugin installation and packaging](docs/plugin-installation.md#english).
+| Host | Install 2.4.1 |
+| --- | --- |
+| DeepSeek Harness | `dsh plugin --profile desktop add code2kb-dsh@2.4.1`. A bare name follows npm’s `latest` and may install a different version. |
+| Claude Code | Download the Claude ZIP from the release above, extract it into an empty folder, then launch `claude --plugin-dir <extracted-folder>`. |
+| Codex | Check out v2.4.1 as shown in Quick start below. At the repository root, run `codex plugin marketplace add .`, then `codex plugin add code2kb@code2kb`. You don’t need the Codex ZIP. |
+
+Start a new session and ask the agent to inventory a small module with Code2KB. The plugins bundle the skill and CLI and require Git and Python 3.9+. To try the 2.5.0 candidate, [install and verify the exact source commit](docs/plugin-installation.md#english) instead of using a released package.
 
 <br>
 
@@ -78,13 +80,17 @@ Requires **Git, Python 3.9+**, and a coding agent that can read local repositori
 Use a separate virtual environment. If the old package is installed, first run `python3 -m pip uninstall code2kb-spec` in that environment; both packages use the same command.
 
 ```bash
-git clone https://github.com/Ethereal-Space-one/code2kb-agent-toolkit.git
+git clone --branch v2.4.1 --depth 1 https://github.com/Ethereal-Space-one/code2kb-agent-toolkit.git
 cd code2kb-agent-toolkit
+python3 -m venv .venv
+. .venv/bin/activate
 python3 -m pip install -e .
 git init /path/to/knowledge-project
 cp templates/知识库配置.example.json /path/to/knowledge-project/知识库配置.json
 git -C /path/to/source-repo rev-parse HEAD
 ```
+
+Check the installed CLI with `code2kb --version`, then run `python3 examples/create_demo.py` from the toolkit checkout. It creates a temporary fixture; expect one outline module in the output. This verifies the local example, not an AI extraction or review of your own project.
 
 Keep the knowledge project separate from source repositories. Edit `知识库配置.json`: remove unused example repositories and set each absolute `path` and pinned `commit`. For English knowledge, set `content_language` to `en`; the default is `zh-CN`. See the [English guide](docs/usage.en.md).
 
@@ -250,7 +256,7 @@ Code and IDs in these diagrams illustrate the structure. The detail diagrams use
 | Import into retrieval | [Retrieval contract](docs/retrieval-contract.md) |
 | Understand guarantees | [Assurance boundaries](docs/assurance-matrix.md) |
 
-Current project version: `2.5.0`. Compare answer-changing branches and overlapping rules, verify pinned source evidence, and check which skill your host actually installed. Knowledge projects need no migration. [Release notes](docs/2.5.0-release-notes.md#english) · [2.5.0 release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.5.0). On npm, select `code2kb-dsh@2.5.0` explicitly; publishing this patch does not move `latest`.
+Current project version: `2.5.0` (source candidate, not published). [Candidate changes](docs/2.5.0-release-notes.md#english) · [2.4.1 downloads](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.4.1) · [npm 2.4.1](https://www.npmjs.com/package/code2kb-dsh/v/2.4.1).
 
 Formerly Code2KB Spec, **Code2KB Agent Toolkit** now uses `code2kb-agent-toolkit` for its repository and Python distribution; the command remains `code2kb`.
 

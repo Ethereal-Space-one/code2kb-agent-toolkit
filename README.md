@@ -59,13 +59,15 @@ AI 沿代码整理功能、流程、限制和问答；`code2kb` 检查证据记�
 
 ## 插件安装
 
-| 宿主 | 安装方式 |
-| --- | --- |
-| DeepSeek Harness | 正式版：`dsh plugin --profile desktop add code2kb-dsh@2.5.0`。验证未发布的 Skill 请安装目标提交构建的本地包 |
-| Claude Code | 从目标提交的干净检出启动 `claude --plugin-dir .` |
-| Codex | 从目标提交的干净检出运行 `codex plugin marketplace add .`，再运行 `codex plugin add code2kb@code2kb` |
+可直接安装的是 [v2.4.1](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.4.1)；主分支的 2.5.0 是源码候选，不是可下载的 Release 或 npm 包。三种宿主选一种即可：
 
-在新会话中请 Agent 用 Code2KB 提取源码知识。插件内置 Skill 和 CLI，运行仍需要 Git 和 Python 3.9+。参见[插件安装与打包](docs/plugin-installation.md)。
+| 宿主 | 安装 2.4.1 |
+| --- | --- |
+| DeepSeek Harness | `dsh plugin --profile desktop add code2kb-dsh@2.4.1`。裸包名跟随 npm 的 `latest`，不一定是这个版本。 |
+| Claude Code | 从上方 Release 下载 Claude ZIP，解压到空目录，用 `claude --plugin-dir <解压目录>` 启动。 |
+| Codex | 按下方快速开始检出 v2.4.1，在仓库根目录运行 `codex plugin marketplace add .` 和 `codex plugin add code2kb@code2kb`。不用下载 Codex ZIP。 |
+
+新开会话，让 Agent 用 Code2KB 盘点一个小模块。插件内置 Skill 和 CLI，运行需要 Git 和 Python 3.9+。要试用 2.5.0，请使用[指定提交的安装与核对流程](docs/plugin-installation.md)，不要用已发行的包代替。
 
 <br>
 
@@ -78,13 +80,17 @@ AI 沿代码整理功能、流程、限制和问答；`code2kb` 检查证据记�
 建议使用独立虚拟环境。曾安装旧包的用户，在原环境先执行 `python3 -m pip uninstall code2kb-spec`，避免两个包共用同一命令。
 
 ```bash
-git clone https://github.com/Ethereal-Space-one/code2kb-agent-toolkit.git
+git clone --branch v2.4.1 --depth 1 https://github.com/Ethereal-Space-one/code2kb-agent-toolkit.git
 cd code2kb-agent-toolkit
+python3 -m venv .venv
+. .venv/bin/activate
 python3 -m pip install -e .
 git init /path/to/knowledge-project
 cp templates/知识库配置.example.json /path/to/knowledge-project/知识库配置.json
 git -C /path/to/source-repo rev-parse HEAD
 ```
+
+先用 `code2kb --version` 核对已安装的 CLI，再在工具仓库运行 `python3 examples/create_demo.py`。它会创建临时示例，正常输出含 `outline_modules: 1`；这说明 CLI 能检查一个模块，不表示 AI 已提取或审核真实项目。
 
 知识项目和源码仓库分开保存。编辑 `知识库配置.json`：删去不用的示例仓库，填入每个源码仓库的绝对路径 `path` 与固定提交 `commit`。知识正文默认中文，英文输出设置 `content_language: en`，见[英文指南](docs/usage.en.md)。
 
@@ -250,7 +256,7 @@ code2kb analyze-candidates --project-root /path/to/knowledge-project \
 | 导入检索系统 | [检索契约](docs/retrieval-contract.md) |
 | 判断工具保证到哪里 | [保证范围](docs/assurance-matrix.md) |
 
-当前工程版本：`2.5.0`。取证时比较会改变答案的条件分支和规则重叠；固定提交证据与宿主 Skill 均可核对。知识项目无需迁移。[更新说明](docs/2.5.0-release-notes.md) · [2.5.0 Release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.5.0)。npm 安装请指定 `code2kb-dsh@2.5.0`；本版发布不会自动移动 `latest`。
+当前工程版本：`2.5.0`（主分支，待发布）。[候选改动说明](docs/2.5.0-release-notes.md) · [2.4.1 正式下载](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.4.1) · [npm 2.4.1](https://www.npmjs.com/package/code2kb-dsh/v/2.4.1)。
 
 本项目由 Code2KB Spec 更名为 **Code2KB Agent Toolkit**，仓库和 Python 包标识统一为 `code2kb-agent-toolkit`，命令仍为 `code2kb`。
 
