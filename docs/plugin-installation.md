@@ -4,7 +4,7 @@ Claude Code、Codex 和 DeepSeek Harness 共用同一份知识提取 Skill 和 P
 
 ## 先选定你要的版本
 
-- **使用正式版 2.4.1**：Claude Code / Codex 选择干净的 `v2.4.1` 检出；DSH 用 `dsh plugin --profile desktop add code2kb-dsh@2.4.1`。裸包名跟随 npm 的 `latest`，而 2.4.1 发布未移动它。需要时用 `npm view code2kb-dsh dist-tags --json` 查看当前指向。第三方目录是否已收录、展示哪一版，不代表本机已加载该版。
+- **使用正式版 2.5.0**：Claude Code / Codex 选择干净的 `v2.5.0` 检出；DSH 用 `dsh plugin --profile desktop add code2kb-dsh@2.5.0`。裸包名跟随 npm 的 `latest`，本项目发布不会移动它。需要时用 `npm view code2kb-dsh dist-tags --json` 查看当前指向。第三方目录是否已收录、展示哪一版，不代表本机已加载该版。
 - **验证未发布的取证指引**：记录评审对象的完整 Git 提交号，另取该提交的干净检出。不要用 npm 正式包替代，也不要仅核对工程版号或入口 `SKILL.md`；候选提交可沿用旧版号和入口，却已改变其引用的取证、复核契约。
 
 ## 从指定提交安装
@@ -45,7 +45,7 @@ python3 -B scripts/package_plugins.py --commit REV --output-dir /tmp/code2kb-plu
 
 ## English
 
-**Released 2.4.1 or a candidate?** For the release, use a clean `v2.4.1` checkout for Claude Code/Codex, or `dsh plugin --profile desktop add code2kb-dsh@2.4.1` for DSH. A bare npm name selects `latest`, which this patch did not advance. Check the live tags with `npm view code2kb-dsh dist-tags --json`. A third-party catalog listing is not proof of the installed version.
+**Released 2.5.0 or a candidate?** For the release, use a clean `v2.5.0` checkout for Claude Code/Codex, or `dsh plugin --profile desktop add code2kb-dsh@2.5.0` for DSH. A bare npm name selects `latest`, which the release workflow does not advance. Check the live tags with `npm view code2kb-dsh dist-tags --json`. A third-party catalog listing is not proof of the installed version.
 
 For **unreleased extraction instructions**, take a clean checkout of the exact reviewed commit. A candidate can keep the same version and top-level skill file while changing the contracts it loads.
 

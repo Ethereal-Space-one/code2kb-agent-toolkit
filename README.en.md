@@ -53,7 +53,7 @@ The evaluated retrieval extension has its own audit path; consumers who split ba
 
 | Host | Install |
 | --- | --- |
-| DeepSeek Harness | Release: `dsh plugin --profile desktop add code2kb-dsh@2.4.1`. To test unreleased instructions, install the tarball built from the target commit. |
+| DeepSeek Harness | Release: `dsh plugin --profile desktop add code2kb-dsh@2.5.0`. To test unreleased instructions, install the tarball built from the target commit. |
 | Claude Code | Run `claude --plugin-dir .` from a clean checkout of the target commit |
 | Codex | Run `codex plugin marketplace add .` from a clean checkout of the target commit, then run `codex plugin add code2kb@code2kb` |
 
@@ -250,7 +250,7 @@ Code and IDs in these diagrams illustrate the structure. The detail diagrams use
 | Import into retrieval | [Retrieval contract](docs/retrieval-contract.md) |
 | Understand guarantees | [Assurance boundaries](docs/assurance-matrix.md) |
 
-Current project version: `2.4.1`. This patch changes how the toolkit is packaged and verified. Knowledge projects need no migration. [Release notes](docs/2.4.1-release-notes.md#english) · [2.4.1 release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.4.1). On npm, select `code2kb-dsh@2.4.1` explicitly; publishing this patch does not move `latest`.
+Current project version: `2.5.0`. Compare answer-changing branches and overlapping rules, verify pinned source evidence, and check which skill your host actually installed. Knowledge projects need no migration. [Release notes](docs/2.5.0-release-notes.md#english) · [2.5.0 release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.5.0). On npm, select `code2kb-dsh@2.5.0` explicitly; publishing this patch does not move `latest`.
 
 Formerly Code2KB Spec, **Code2KB Agent Toolkit** now uses `code2kb-agent-toolkit` for its repository and Python distribution; the command remains `code2kb`.
 

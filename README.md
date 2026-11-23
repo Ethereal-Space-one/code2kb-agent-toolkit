@@ -61,7 +61,7 @@ AI 沿代码整理功能、流程、限制和问答；`code2kb` 检查证据记�
 
 | 宿主 | 安装方式 |
 | --- | --- |
-| DeepSeek Harness | 正式版：`dsh plugin --profile desktop add code2kb-dsh@2.4.1`。验证未发布的 Skill 请安装目标提交构建的本地包 |
+| DeepSeek Harness | 正式版：`dsh plugin --profile desktop add code2kb-dsh@2.5.0`。验证未发布的 Skill 请安装目标提交构建的本地包 |
 | Claude Code | 从目标提交的干净检出启动 `claude --plugin-dir .` |
 | Codex | 从目标提交的干净检出运行 `codex plugin marketplace add .`，再运行 `codex plugin add code2kb@code2kb` |
 
@@ -250,7 +250,7 @@ code2kb analyze-candidates --project-root /path/to/knowledge-project \
 | 导入检索系统 | [检索契约](docs/retrieval-contract.md) |
 | 判断工具保证到哪里 | [保证范围](docs/assurance-matrix.md) |
 
-当前工程版本：`2.4.1`。本版只更新工具包的发布与校验；知识项目无需迁移。[更新说明](docs/2.4.1-release-notes.md) · [2.4.1 Release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.4.1)。npm 安装请指定 `code2kb-dsh@2.4.1`；本版发布不会自动移动 `latest`。
+当前工程版本：`2.5.0`。取证时比较会改变答案的条件分支和规则重叠；固定提交证据与宿主 Skill 均可核对。知识项目无需迁移。[更新说明](docs/2.5.0-release-notes.md) · [2.5.0 Release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.5.0)。npm 安装请指定 `code2kb-dsh@2.5.0`；本版发布不会自动移动 `latest`。
 
 本项目由 Code2KB Spec 更名为 **Code2KB Agent Toolkit**，仓库和 Python 包标识统一为 `code2kb-agent-toolkit`，命令仍为 `code2kb`。
 
