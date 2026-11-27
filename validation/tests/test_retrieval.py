@@ -252,6 +252,112 @@ class RetrievalTests(unittest.TestCase):
         after = {path: digest(path.read_bytes()) for path in release.rglob("*") if path.is_file()}
         self.assertEqual(before, after)
 
+    def test_replay_card_separates_missing_excerpt_coverage_and_answer_review(self):
+        self.publish()
+        release = self.build()
+        manifest_path = release / "检索清单/retrieval-test.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        target_entry, body = next(
+            (entry, read_unit(self.project / entry["path"])[1])
+            for entry in manifest["units"]
+            if entry["audience"] == "business"
+            and "这是用户能看到的操作说明" in read_unit(self.project / entry["path"])[1]
+        )
+        target = target_entry["unit_id"]
+        phrase, partial = "这是用户能看到的操作说明", "这是用户能看到的"
+        check = suite(unknown=["未知边界没有记录"])
+        case = dict(check["cases"][0], expected_unit_ids=[target], query="PRIVATE-SAMPLE-QUESTION")
+        check["cases"] = [dict(case, case_id=key) for key in ("partial", "absent", "full", "not-retrieved")]
+        fixtures.write(self.suite_path, json.dumps(check, ensure_ascii=False))
+        results_path, contexts_path = self.project / "results.json", self.project / "contexts.json"
+        results = {"schema_version": "0.1", "suite_id": check["suite_id"], "retriever_id": "fixture",
+                   "corpus_sha256": digest(json_bytes(manifest["views"])),
+                   "cases": {key: [{"unit_id": target, "score": 1}] for key in ("partial", "absent", "full")}}
+        results["cases"]["not-retrieved"] = []
+        original = {"partial": [{"unit_id": target, "text": partial}], "absent": [],
+                    "full": [{"unit_id": target, "text": body}], "not-retrieved": []}
+        fixtures.write(results_path, json.dumps(results, ensure_ascii=False))
+        fixtures.write(contexts_path, json.dumps(original, ensure_ascii=False))
+        before = {path: digest(path.read_bytes()) for path in release.rglob("*") if path.is_file()}
+        args = ("retrieval-diagnose-context", "--release-id", "retrieval-test", "--suite", str(self.suite_path),
+                "--results", str(results_path), "--contexts", str(contexts_path))
+
+        def get(key, *extra):
+            result = self.fixture.run_cli(*args, "--card", key, "--output", "json", *extra)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            return json.loads(result.stdout)["result"]
+
+        record = get("partial")
+        self.assertNotIn("question", record)
+        self.assertEqual(record["counts"], {"retrieved_units": 1, "recorded_context_units": 1, "recorded_excerpts": 1})
+        self.assertEqual(record["retrieved"][0]["recorded_context"], "excerpts_only")
+        self.assertTrue(record["retrieved"][0]["source_locations"][0]["path"].startswith("发布/业务版/"))
+        self.assertEqual(record["recorded_excerpts"],
+                         [{"unit_id": target, "code_points": len(partial), "sha256": digest(partial.encode())}])
+        required = {"marker_id": "required-1", "position": 1, "sha256": digest(phrase.encode())}
+        unknown = {"marker_id": "unknown-1", "position": 1, "sha256": digest("未知边界没有记录".encode())}
+        self.assertEqual(record["lost_during_assembly"]["required_phrases"], [required])
+        self.assertEqual(record["missing_at_retrieval"]["required_unknown_phrases"], [unknown])
+        self.assertEqual(record["identity"]["retrieval_manifest_sha256"], digest(manifest_path.read_bytes()))
+        self.assertEqual(record["identity"]["normalized_input_sha256"]["contexts"], digest(json_bytes(original)))
+        self.assertEqual(record["validation"]["saved_retrieval_gate_status"], "unevaluated")
+        self.assertEqual(record["validation"]["snapshot_audit"], "passed")
+        self.assertEqual(record["validation"]["answer_review_status"], "not_assessed")
+        self.assertEqual(record["validation"]["evidence_status"], "gaps_found")
+        markdown = self.fixture.run_cli(*args, "--card", "partial", "--card-language", "en").stdout
+        self.assertIn("gaps found", markdown)
+        self.assertIn("Final answer: not assessed", markdown)
+        self.assertIn("none spans the full unit", markdown)
+        self.assertNotIn("PRIVATE-SAMPLE-QUESTION", markdown)
+        self.assertNotIn("未知边界没有记录", markdown)
+        self.assertIn("Required unknowns #1", markdown)
+        self.assertNotIn("\n" + partial + "\n", markdown)
+        explicit = self.fixture.run_cli(*args, "--card", "partial", "--include-excerpts").stdout
+        self.assertIn("\n```\n" + partial + "\n```", explicit)
+        self.assertNotIn("PRIVATE-SAMPLE-QUESTION", explicit)
+        self.assertIn("未知边界没有记录", explicit)
+        local_record = get("partial", "--include-excerpts")
+        self.assertEqual(local_record["recorded_excerpts"][0]["text"], partial)
+        self.assertEqual(local_record["missing_at_retrieval"]["required_unknown_phrases"], [
+            {**unknown, "text": "未知边界没有记录"},
+        ])
+        self.assertEqual(get("absent")["retrieved"][0]["recorded_context"], "no_excerpt_recorded")
+        self.assertEqual(get("absent")["counts"]["recorded_excerpts"], 0)
+        self.assertEqual(get("full")["retrieved"][0]["recorded_context"], "full_unit_as_one_excerpt")
+        self.assertEqual(get("full")["lost_during_assembly"]["required_phrases"], [])
+        self.assertEqual(get("not-retrieved")["missing_at_retrieval"]["required_phrases"], [required])
+        self.assertEqual(get("not-retrieved")["lost_during_assembly"]["required_phrases"], [])
+        # Missing capture is not the same as a recorded empty context; other rows must also validate.
+        invalid_contexts = {key: value for key, value in original.items() if key != "absent"}
+        fixtures.write(contexts_path, json.dumps(invalid_contexts, ensure_ascii=False))
+        attempt = self.fixture.run_cli(*args, "--card", "partial")
+        self.assertNotEqual(attempt.returncode, 0)
+        self.assertIn("不匹配", attempt.stderr)
+        self.assertFalse(attempt.stdout)
+        forged = {**original, "partial": [{"unit_id": target, "text": "NOT FROM THIS UNIT"}]}
+        fixtures.write(contexts_path, json.dumps(forged, ensure_ascii=False))
+        attempt = self.fixture.run_cli(*args, "--card", "partial")
+        self.assertNotEqual(attempt.returncode, 0)
+        self.assertIn("不属于本题已召回单元的原文", attempt.stderr)
+        self.assertFalse(attempt.stdout)
+        fixtures.write(contexts_path, json.dumps(original, ensure_ascii=False))
+        stale_results = dict(results, corpus_sha256="0" * 64)
+        fixtures.write(results_path, json.dumps(stale_results, ensure_ascii=False))
+        attempt = self.fixture.run_cli(*args, "--card", "partial")
+        self.assertNotEqual(attempt.returncode, 0)
+        self.assertIn("语料摘要不匹配", attempt.stderr)
+        self.assertFalse(attempt.stdout)
+        fixtures.write(results_path, json.dumps(results, ensure_ascii=False))
+        self.assertNotEqual(self.fixture.run_cli(*args, "--card", "nonexistent").returncode, 0)
+        self.assertEqual(before, {path: digest(path.read_bytes()) for path in release.rglob("*") if path.is_file()})
+        # Matching captured text alone must not override a changed source in the base release.
+        source = self.project / record["retrieved"][0]["source_locations"][0]["path"]
+        source.write_text(source.read_text(encoding="utf-8") + "\nTAMPER_FIXTURE\n", encoding="utf-8")
+        attempt = self.fixture.run_cli(*args, "--card", "partial")
+        self.assertNotEqual(attempt.returncode, 0)
+        self.assertIn("发布目录内容已被修改", attempt.stderr)
+        self.assertFalse(attempt.stdout)
+
     def test_audit_rejects_changed_base_or_report(self):
         self.publish()
         release = self.build()

@@ -59,7 +59,7 @@ AI 沿代码整理功能、流程、限制和问答；`code2kb` 检查证据记�
 
 ## 插件安装
 
-可直接安装的是 [v2.4.1](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.4.1)；主分支的 2.5.0 是源码候选，不是可下载的 Release 或 npm 包。三种宿主选一种即可：
+可直接安装的是 [v2.4.1](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.4.1)；下表固定演示这个已发行版本。验证 2.5.0 源码改动，请按完整提交核对，不能只看工程版号。三种宿主选一种即可：
 
 | 宿主 | 安装 2.4.1 |
 | --- | --- |
@@ -256,7 +256,7 @@ code2kb analyze-candidates --project-root /path/to/knowledge-project \
 | 导入检索系统 | [检索契约](docs/retrieval-contract.md) |
 | 判断工具保证到哪里 | [保证范围](docs/assurance-matrix.md) |
 
-当前工程版本：`2.5.0`（主分支，待发布）。[候选改动说明](docs/2.5.0-release-notes.md) · [2.4.1 正式下载](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.4.1) · [npm 2.4.1](https://www.npmjs.com/package/code2kb-dsh/v/2.4.1)。
+当前工程版本：`2.5.0`（源码标识，不代表 npm 或 GitHub 已发行）。[2.5.0 改动与兼容提醒](docs/2.5.0-release-notes.md) · [2.4.1 正式下载](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.4.1) · [npm 2.4.1](https://www.npmjs.com/package/code2kb-dsh/v/2.4.1)。
 
 本项目由 Code2KB Spec 更名为 **Code2KB Agent Toolkit**，仓库和 Python 包标识统一为 `code2kb-agent-toolkit`，命令仍为 `code2kb`。
 
@@ -268,3 +268,4 @@ code2kb analyze-candidates --project-root /path/to/knowledge-project \
 
 [反馈问题](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/issues) · [参与贡献](CONTRIBUTING.md) · [Apache License 2.0](LICENSE)
 
+维护中版本提供[证据盲测、变更复核工单与发布回执](docs/evidence-review-receipt.md)，正式包的可用功能以其标签为准。

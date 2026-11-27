@@ -102,3 +102,5 @@ python3 -B scripts/release_validation.py verify-bundle --bundle-dir "$bundle" --
 **失败恢复不是重跑。** npm 命令超时／返回非零后只做有界只读核对，绝不重新发送发布。读取超时、返回异常、读回不匹配或标签改变均须人工核对。若 npm 已成功而 GitHub 失败，npm 版号可能已永久占用，GitHub 可能已有未完成草稿；若最终响应丢失，GitHub 发行也可能实际已公开。保留本次 ID、五份文件、两份摘要及 Actions 记录，先只读核对两端；禁止再次触发写入、重建同版本、移动标签、覆盖资产或盲删草稿。由所有者单独决定恢复或用新版本修正。任何服务中断都不等价于“尚未发布”。
 
 参考：[GitHub 不可变发行](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases)、[环境保护](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments)、[npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers/)。
+
+本地验包、线上 CI 与两个公开发布端的结论可用[只读发布回执](evidence-review-receipt.md)集中核对。

@@ -24,3 +24,5 @@ code2kb preview-upgrade --project-root /知识项目 \
 保存计划摘要后，可在同一全项目命令中传入 `--expect-plan-sha256 <摘要>` 复算；知识项目文件或目标源码提交发生变化时拒绝沿用旧计划。该核对仍为只读，不表示已经授权迁移或发布。
 
 工作区有未提交改动、新增/删除/类型变化路径、变化路径未归属、显式排除、Adapter 无法解析、关系未证实、变化缺少已验证证据，或存在绑定目标仓库旧提交的运行/部署证据时，计划给出 `full_project_review`。相关运行证据路径单独列入 `baseline_migration.runtime_evidence_requiring_independent_review`；旧观测不能机械改写为新提交的证据。满足当前归属条件时也仅给 `selected_modules` 候选；`execution_gate` 明确要求先解决固定提交和证据迁移，并重新走审核。`--plan` 不创建任务、不修改知识项目，也不授权旧批准复用。公开双模块案例已验证只读选择与手工迁移可行；受控迁移和任务衔接仍待实现。
+
+当前源码还可把已核对摘要的计划转成[按事实和消费者分派的复核工单](evidence-review-receipt.md)。工单会检查同文件的其他变化行，不承诺自动迁移或重新批准。

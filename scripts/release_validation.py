@@ -215,7 +215,7 @@ def github_plan(manifest: dict, release: dict | None, tag_commit: str | None) ->
     return {"release": "existing", "action": "do_not_modify", "immutable": release.get("immutable"), "draft": release.get("draft")}
 
 
-def reconcile(directory: Path, manifest: dict, reads: PublicReads) -> dict:
+def observe_npm(manifest: dict, reads: PublicReads):
     version, record = manifest["version"], manifest["artifacts"]["dsh"]
     published = reads.json(f"/{PACKAGE}/{version}", missing_ok=True)
     latest = reads.json(f"/{PACKAGE}/latest", missing_ok=True)
@@ -228,6 +228,11 @@ def reconcile(directory: Path, manifest: dict, reads: PublicReads) -> dict:
         if len(data) != record["size"] or hashlib.sha256(data).hexdigest() != record["sha256"] or "sha512-" + base64.b64encode(hashlib.sha512(data).digest()).decode("ascii") != record["integrity"]:
             raise ValueError("实际 registry 归档与本次归档不一致；停止")
         npm["archive_bytes"] = "matching"
+    return npm, latest
+
+
+def observe_github(directory: Path, manifest: dict, reads: PublicReads):
+    version = manifest["version"]
     tag = "v" + version
     ref = reads.json(f"/git/ref/tags/{tag}", github=True, missing_ok=True)
     tag_commit = None
@@ -259,6 +264,13 @@ def reconcile(directory: Path, manifest: dict, reads: PublicReads) -> dict:
             if asset.get("size") != record["size"] or asset.get("digest") != "sha256:" + record["sha256"]:
                 raise ValueError("已有 Release 资产摘要不同或未知；禁止覆盖")
         github["asset_metadata"] = "matching_not_independently_downloaded"
+    return github, release
+
+
+def reconcile(directory: Path, manifest: dict, reads: PublicReads) -> dict:
+    version = manifest["version"]
+    npm, latest = observe_npm(manifest, reads)
+    github, _ = observe_github(directory, manifest, reads)
     observed_again = reads.json(f"/{PACKAGE}/latest", missing_ok=True)
     if observed_again != latest:
         raise ValueError("核对期间 latest 已变化；结果不稳定，须重新只读核对")

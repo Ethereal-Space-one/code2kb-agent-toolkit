@@ -4,7 +4,7 @@
 
 本文件面向知识库维护者；AI 使用独立的 [Skill 入口](../skills/extract-app-knowledge/SKILL.md)。操作手顺与 AI 指令都不进入机器人语料。
 
-> 适用于工程 `2.1.0`，命令为 `code2kb`。旧品牌发布快照请用生成时对应的工具审计。AI 的执行入口是 [`skills/extract-app-knowledge/SKILL.md`](../skills/extract-app-knowledge/SKILL.md)。
+> **先选安装版本。** 下例从[已发行的 v2.4.1](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.4.1) 开始。要验证不在该发行中的源码改动，请改走[按指定提交安装并核验](plugin-installation.md)的流程。命令为 `code2kb`。旧品牌发布快照请用生成时对应的工具审计。AI 的执行入口是 [`skills/extract-app-knowledge/SKILL.md`](../skills/extract-app-knowledge/SKILL.md)。
 
 ## 工作方式
 
@@ -21,15 +21,24 @@ Code2KB 从一个或多个固定 Git 提交中建立独立的知识项目。先�
 
 ## 安装
 
-直接运行源码：
+尚未检出工具仓库时，先选择已发行的源码：
+
+```bash
+git clone --branch v2.4.1 --depth 1 https://github.com/Ethereal-Space-one/code2kb-agent-toolkit.git code2kb-agent-toolkit
+cd code2kb-agent-toolkit
+```
+
+在所选检出目录中直接运行源码：
 
 ```bash
 python3 -B validation/knowledge.py --help
 ```
 
-或安装命令：
+或在单独的虚拟环境中安装命令：
 
 ```bash
+python3 -m venv .venv
+. .venv/bin/activate
 python3 -m pip install -e .
 code2kb --help
 code2kb --version
@@ -45,6 +54,8 @@ code2kb --version
 2. 复制 [`templates/知识库配置.example.json`](../templates/知识库配置.example.json)。
 3. 为每个源码仓库填写绝对路径或完整 `${UPPER_CASE_ENV}` 引用，并填写固定提交 SHA。
 4. 让 AI 读取 Skill，先建立完整功能大纲。
+
+使用包含首扫改动的 2.5.0 提交时，可以先用 `analyze-candidates` 盘点仓库，再用 `evidence-snapshot` 核对固定提交中的锚点。这两条只读命令在填好配置后即可运行，无需先创建知识源目录，也不会写入大纲。使用已发行的 v2.4.1 时，先按配置创建知识源目录再运行。正式 `check` 仍要求知识源与大纲。
 
 项目 `content_language` 可选 `zh-CN`（缺省）或 `en`。正文、问答和生成导航使用所选语言；英文业务及研发文件须显式声明 `content_language: en`。AI 交互语言、知识输出语言、源码编程语言分别处理。固定文件名、表头、枚举和 ID 保留；英文流程见[英文使用指南](usage.en.md)。修改语言或翻译正文后仍需刷新候选和重新审核，不能沿用旧批准。
 
