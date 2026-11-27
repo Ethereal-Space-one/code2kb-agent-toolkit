@@ -81,7 +81,7 @@ jobs:
     needs: package
     runs-on: ubuntu-24.04
     timeout-minutes: 5
-    # GitHub only lists private drafts for push-capable callers. This job makes GETs only.
+    # Use the production credential class, but this job only reads the release inventory.
     permissions:
       contents: write
     steps:
@@ -90,18 +90,33 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.package.outputs.version }}
+          DRAFT_WITNESS: ${{ vars.RELEASE_DRAFT_WITNESS }}
         run: &no_release |
-          # Only authenticated users with push access can enumerate draft releases.
-          # A public GET returning 404 is not evidence that a draft doesn't exist.
+          # A successful GET can still omit drafts. Require a known draft from
+          # the maintainer, observed in the same paginated inventory as the target.
           python3 -I - <<'GUARD'
-          import json, os, subprocess
+          import json, os, re, subprocess
           repo = "repos/Ethereal-Space-one/code2kb-agent-toolkit"
-          def read(endpoint):
-              return json.loads(subprocess.check_output(["gh","api",endpoint]))
-          assert read(repo)["permissions"]["push"] is True, "draft visibility not established"
+          witness = re.fullmatch(r"([1-9][0-9]{0,18}):(v0\.0\.0-code2kb-proof-[a-f0-9]{16})", os.environ["DRAFT_WITNESS"])
+          if not witness:
+              raise SystemExit("release draft witness missing or invalid")
+          target = "v" + os.environ["VERSION"]
           pages = json.loads(subprocess.check_output(["gh","api","--paginate","--slurp",repo+"/releases?per_page=100"]))
-          assert isinstance(pages,list) and pages and all(isinstance(p,list) for p in pages)
-          assert not any(r["tag_name"] == "v"+os.environ["VERSION"] for page in pages for r in page), "existing release or draft: do not adopt, modify or upload"
+          if not isinstance(pages, list) or not pages or not all(isinstance(p, list) for p in pages):
+              raise SystemExit("release inventory unreadable")
+          rows = [r for page in pages for r in page]
+          if not all(isinstance(r, dict) and type(r.get("id")) is int and r["id"] > 0
+                     and type(r.get("draft")) is bool and isinstance(r.get("tag_name"), str) for r in rows):
+              raise SystemExit("release inventory unreadable")
+          if len({r["id"] for r in rows}) != len(rows):
+              raise SystemExit("release inventory changed during pagination")
+          witness_id, witness_tag = int(witness[1]), witness[2]
+          seen = next((r for r in rows if r["id"] == witness_id), None)
+          if not seen or seen["tag_name"] != witness_tag or seen["draft"] is not True or seen.get("name") != "Code2KB draft visibility witness":
+              raise SystemExit("draft visibility not established")
+          if any(r["tag_name"] == target for r in rows):
+              raise SystemExit("existing release or draft: do not adopt, modify or upload")
+          print("Known private draft visible; no matching target in release inventory.")
           GUARD
 
   npm:
@@ -279,6 +294,7 @@ jobs:
       - name: Recheck authenticated draft and release inventory before creation
         env:
           GH_TOKEN: ${{ github.token }}
+          DRAFT_WITNESS: ${{ vars.RELEASE_DRAFT_WITNESS }}
         run: *no_release
       - name: Verify a new draft by ID before publishing, then verify public bytes
         id: github_write

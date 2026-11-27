@@ -108,11 +108,14 @@ def gh():
     a = args[1:]
     if "--method" in a:
         journal("github-write", *a)
-    if a == [repo]:
-        return {"permissions": {"push": state.get("push", True)}}
     if a == ["--paginate", "--slurp", repo + "/releases?per_page=100"]:
         # Match on page 2, not just the first page.
-        return [[], [json.loads(release.read_bytes())] if release.exists() else []]
+        witness = {"id": 117, "tag_name": "v0.0.0-code2kb-proof-1234567890abcdef",
+                   "name": "Code2KB draft visibility witness", "draft": state.get("witness_is_draft", True)}
+        rows = [] if not state.get("show_witness", True) else [witness]
+        if release.exists():
+            rows.append(json.loads(release.read_bytes()))
+        return [[], rows]
     if a == [repo + "/git/ref/tags/" + tag]:
         return {"object": {"type": "commit", "sha": state.get("tag_commit", state["commit"])}}
     if a == ["--method", "POST", repo + "/releases", "--input", "-"]:

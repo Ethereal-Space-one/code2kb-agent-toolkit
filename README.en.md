@@ -51,7 +51,7 @@ The evaluated retrieval extension has its own audit path; consumers who split ba
 
 ## Install as a plugin
 
-Install the published [v2.4.1 release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.4.1). The examples below pin that published version. Review 2.5.0 source changes by exact commit, not by the project version alone. Choose one host:
+Install the published [v2.4.1 release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.4.1). The examples below pin that published version. Review 2.5.1 source changes by exact commit, not by the project version alone. Choose one host:
 
 | Host | Install 2.4.1 |
 | --- | --- |
@@ -59,7 +59,7 @@ Install the published [v2.4.1 release](https://github.com/Ethereal-Space-one/cod
 | Claude Code | Download the Claude ZIP from the release above, extract it into an empty folder, then launch `claude --plugin-dir <extracted-folder>`. |
 | Codex | Check out v2.4.1 as shown in Quick start below. At the repository root, run `codex plugin marketplace add .`, then `codex plugin add code2kb@code2kb`. You don’t need the Codex ZIP. |
 
-Start a new session and ask the agent to inventory a small module with Code2KB. The plugins bundle the skill and CLI and require Git and Python 3.9+. To try the 2.5.0 candidate, [install and verify the exact source commit](docs/plugin-installation.md#english) instead of using a released package.
+Start a new session and ask the agent to inventory a small module with Code2KB. The plugins bundle the skill and CLI and require Git and Python 3.9+. To try the 2.5.1 candidate, [install and verify the exact source commit](docs/plugin-installation.md#english) instead of using a released package.
 
 <br>
 
@@ -256,7 +256,7 @@ Code and IDs in these diagrams illustrate the structure. The detail diagrams use
 | Import into retrieval | [Retrieval contract](docs/retrieval-contract.md) |
 | Understand guarantees | [Assurance boundaries](docs/assurance-matrix.md) |
 
-Current project version: `2.5.0` (source identity, not proof of GitHub or npm publication). [2.5.0 changes and compatibility](docs/2.5.0-release-notes.md#english) · [2.4.1 downloads](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.4.1) · [npm 2.4.1](https://www.npmjs.com/package/code2kb-dsh/v/2.4.1).
+Current project version: `2.5.1` (source identity, not proof of GitHub or npm publication). [2.5.1 changes and compatibility](docs/2.5.1-release-notes.md#english) · [2.4.1 downloads](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.4.1) · [npm 2.4.1](https://www.npmjs.com/package/code2kb-dsh/v/2.4.1).
 
 Formerly Code2KB Spec, **Code2KB Agent Toolkit** now uses `code2kb-agent-toolkit` for its repository and Python distribution; the command remains `code2kb`.
 
