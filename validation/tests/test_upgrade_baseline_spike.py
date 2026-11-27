@@ -163,6 +163,17 @@ class UpgradeBaselineSpikeTests(unittest.TestCase):
             self.assertEqual(candidate['review_scope_metrics']['semantic_review_modules'], 1)
             self.assertEqual(candidate['review_scope_metrics']['baseline_touch_modules'], 2)
             self.assertEqual(candidate['review_scope_metrics']['approval_refresh_modules'], 2)
+            queue_args = ('preview-upgrade','--all-modules','--plan','--review-queue',
+                          '--repository-id','backend','--new-commit',new)
+            stale = sample.run_cli(*queue_args,'--expect-plan-sha256','0'*64)
+            self.assertNotEqual(stale.returncode, 0)
+            work = sample.run_cli(*queue_args,'--expect-plan-sha256',candidate['plan_sha256'])
+            self.assertEqual(work.returncode, 0, work.stderr)
+            packets = json.loads(work.stdout)
+            self.assertEqual(packets['disposition'], 'selected_modules')
+            scope = {p['module_id']:p['work'] for p in packets['modules']}
+            self.assertEqual(scope, {'sample.order.delivery':'review_module','sample.account.profile':'baseline_only'})
+            self.assertEqual(index_before_preview, project_index.read_bytes())
             evidence_path = project / '运行证据/订单/订单查询/测试观测.md'
             fixture.write(evidence_path,
                           '---\ndocument_type: runtime_evidence\nevidence_id: EVID-001\n'

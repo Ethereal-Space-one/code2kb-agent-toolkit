@@ -51,7 +51,7 @@ The evaluated retrieval extension has its own audit path; consumers who split ba
 
 ## Install as a plugin
 
-Install the published [v2.4.1 release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.4.1). The 2.5.0 source on `main` is a candidate, not a downloadable release or npm package. Choose one host:
+Install the published [v2.4.1 release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.4.1). The examples below pin that published version. Review 2.5.0 source changes by exact commit, not by the project version alone. Choose one host:
 
 | Host | Install 2.4.1 |
 | --- | --- |
@@ -256,7 +256,7 @@ Code and IDs in these diagrams illustrate the structure. The detail diagrams use
 | Import into retrieval | [Retrieval contract](docs/retrieval-contract.md) |
 | Understand guarantees | [Assurance boundaries](docs/assurance-matrix.md) |
 
-Current project version: `2.5.0` (source candidate, not published). [Candidate changes](docs/2.5.0-release-notes.md#english) · [2.4.1 downloads](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.4.1) · [npm 2.4.1](https://www.npmjs.com/package/code2kb-dsh/v/2.4.1).
+Current project version: `2.5.0` (source identity, not proof of GitHub or npm publication). [2.5.0 changes and compatibility](docs/2.5.0-release-notes.md#english) · [2.4.1 downloads](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.4.1) · [npm 2.4.1](https://www.npmjs.com/package/code2kb-dsh/v/2.4.1).
 
 Formerly Code2KB Spec, **Code2KB Agent Toolkit** now uses `code2kb-agent-toolkit` for its repository and Python distribution; the command remains `code2kb`.
 
@@ -268,3 +268,4 @@ Source alone cannot establish production behavior or business policy. Preserve u
 
 [Report an issue](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/issues) · [Contribute](CONTRIBUTING.md) · [Apache License 2.0](LICENSE)
 
+The development checkout includes [blind evidence trials, change-review work packets, and release receipts](docs/evidence-review-receipt.md). For released packages, follow the tagged documentation.

@@ -92,7 +92,9 @@ jobs:
       - name: CI helper regression
         run: python3 -B -m unittest discover -s .github/tests -q
       - name: Plugin packaging regression
-        run: python3 -B -m unittest discover -s scripts -p test_package_plugins.py -q
+        run: |
+          python3 -B -m unittest discover -s scripts -p test_package_plugins.py -q
+          python3 -B -m unittest discover -s scripts -p test_release_validation.py -q
       - name: Build and audit plugin packages
         if: ${{ !inputs.release_handoff }}
         run: python3 -B scripts/package_plugins.py --commit "$GITHUB_SHA" --output-dir "$RUNNER_TEMP/plugins"

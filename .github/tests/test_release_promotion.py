@@ -31,7 +31,7 @@ def workflow():
     except ImportError:
         return json.loads(subprocess.check_output([
             "ruby", "-rpsych", "-rjson", "-e",
-            "puts JSON.generate(Psych.safe_load_file(ARGV.first, aliases: true))",
+            "puts JSON.generate(Psych.safe_load(File.read(ARGV.first, encoding: 'UTF-8'), aliases: true))",
             str(WORKFLOW),
         ]))
     return yaml.load(WORKFLOW.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)

@@ -51,6 +51,22 @@ code2kb retrieval-diagnose-context --project-root /项目 --release-id example-v
   --contexts /路径/contexts.json
 ```
 
+### 单题证据复盘卡
+
+用同一组已记录的题集、候选和上下文，加 `--card CASE_ID` 输出某一题的 Markdown 卡。没有此参数时，原 JSON 诊断及校验规则保持不变。卡片命令仍校验整个题集、候选和上下文；缺失任何题的记录就报错，不能当作明确记录了空数组。
+
+```bash
+code2kb retrieval-diagnose-context --project-root /项目 --release-id example-v1 \
+  --suite /路径/questions.json --results /路径/external-results.json \
+  --contexts /路径/contexts.json --card order-query-result
+```
+
+卡片显示候选的顺序、出处链接、哪些单元出现在上下文记录里、片段指纹和两个阶段的已标注缺口。看到“有片段；没有单个完整单元”不能断言发生了截断：可能是多片段拼装，也可能丢掉了关键内容。基础清单、检索清单、语料与三份规范化输入的摘要用来标识本次记录。已保存的检索门禁及其题集单独显示，不是对这次回答重新打分。
+
+默认不展示题目、提示词、回答、上下文片段正文或题集标注原文，缺失的必要短语和未知边界用题内序号和摘要表示。这是本地诊断记录，不是自动脱敏报告；仍可能包含主题、路径及标识。加 `--include-excerpts` 可显示上下文片段和缺口标注原文，仅供本地核对。出处链接相对于知识项目根目录；若把 Markdown 保存到别处，请在项目下打开相应出处。加 `--card-language en` 显示英文标签；加 `--output json` 得到结构化卡片。
+
+这不是线上追踪或最终答案评分：工具只确认记录的片段来自该版该题的实际候选，不能证明模型收到了它、事实已验证或答案正确。需另行复核模型的答复。命令不写入发布、索引、门禁或审核记录，也不发送任何内容。
+
 ### 发布时评测
 
 可在基础发布时显式加入门禁：

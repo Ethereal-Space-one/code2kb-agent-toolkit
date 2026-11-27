@@ -4,7 +4,7 @@
 
 **For knowledge maintainers.** Give the [Skill entry](../skills/extract-app-knowledge/SKILL.md) to your AI coding agent; this guide explains your setup and decisions. Neither document belongs in a bot's knowledge corpus.
 
-> Applies to the `2.1.0` toolkit. The CLI is `code2kb`. Use the original generating version to audit old-brand releases. See the [rename notes](agent-toolkit-rebrand-plan.md).
+> **Choose your starting version.** The source-install example below selects the published [v2.4.1 release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.4.1). To evaluate a change outside that release, use the [exact-commit installation and verification steps](plugin-installation.md#english) instead. The CLI is `code2kb`; use the version that generated an old-brand release to audit it. See the [rename notes](agent-toolkit-rebrand-plan.md).
 
 For a project containing an old-brand release, retain the original project. Reuse its configuration, knowledge sources and required review materials in a new knowledge Git project, check them and follow the normal review and publication steps. Do not copy the old release directory; this tool will not overwrite it directly.
 
@@ -19,9 +19,12 @@ Protocol filenames, fixed internal tables, enums and IDs remain literal, often C
 Requires Git, Python 3.9+ and your own AI coding agent with access to local repositories. Mutating commands need `fcntl` on platforms such as Linux/macOS.
 
 ```bash
-git clone https://github.com/Ethereal-Space-one/code2kb-agent-toolkit.git code2kb-agent-toolkit
+git clone --branch v2.4.1 --depth 1 https://github.com/Ethereal-Space-one/code2kb-agent-toolkit.git code2kb-agent-toolkit
 cd code2kb-agent-toolkit
+python3 -m venv .venv
+. .venv/bin/activate
 python3 -m pip install -e .
+code2kb --version  # expect 2.4.1 for this checkout
 git init /path/to/knowledge-project
 cp templates/知识库配置.example.json /path/to/knowledge-project/知识库配置.json
 git -C /path/to/source-repo rev-parse HEAD
@@ -43,6 +46,8 @@ Minimal configuration, with placeholders to replace:
 ```
 
 Absent `content_language` means `zh-CN`. Supported values are exactly `zh-CN` and `en`. This capability needs a CLI that supports the new metadata; older tools may reject it.
+
+With a 2.5.0 commit that includes the first-scan change, you can use `analyze-candidates` to inventory files and `evidence-snapshot` to check a pinned source anchor once the configuration is ready. Neither read-only command requires a knowledge-source directory or writes an outline. If you use the published v2.4.1, create the configured knowledge-source directory first. The regular `check` still requires the directory and outline.
 
 ## 2. Start the agent
 
@@ -132,6 +137,8 @@ code2kb retrieval-query --project-root /path/to/knowledge-project \
 Have the agent create the question suite using the existing [retrieval contract](retrieval-contract.md), with expected modules, required conditions/unknowns and forbidden disclosures. A failed evaluation leaves retrieval unready. The [self-authored English case](../conformance/english/README.en.md) checks actual SQLite FTS5 evidence retrieval; it does not prove final bot-answer quality.
 
 Use each hit's `source_locations` to open the matching released section or file. To trace missing evidence, run `retrieval-diagnose-context` with the retrieved candidates and the exact excerpts passed to the model. [Context diagnostics](retrieval-evaluation.md#诊断送入模型的证据) · [English release notes](2.3.0-release-notes.md#english)
+
+On a source checkout that includes the replay card, add `--card CASE_ID --card-language en` to that same diagnostics command to see ranked evidence, recorded excerpts by fingerprint, and the two gap stages. Add `--output json` for a structured card. Questions, raw excerpts and annotated phrases are omitted by default; use `--include-excerpts` for local inspection. This is a local diagnostic, not a redacted report. The saved retrieval gate is separate from this case, and the answer remains **not assessed**. [Replay card details](retrieval-evaluation.md#单题证据复盘卡)
 
 Import only released business knowledge into a business bot. Your external FTS/vector system retrieves text and your model composes the answer. Keep engineering content, internal specifications, this guide and agent instructions out of that corpus. Code2KB does not deploy your bot or index service.
 

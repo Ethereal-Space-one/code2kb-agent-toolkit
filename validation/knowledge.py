@@ -26,9 +26,9 @@ try:
     from .pinned_source import PinnedReads
     from .evidence_snapshot import snapshot as source_snapshot
     from .governance import Governance, json_text, atomic_write, digest, scan_business_terms
-    from . import retrieval_build, retrieval_evaluate, retrieval_audit, retrieval_profile, retrieval_query, relation_release, relation_model, relation_upgrade, relation_upgrade_project, fact_render, run_state, workflow, host_adapter, protocol, protocol_migration, upgrade_plan
+    from . import retrieval_build, retrieval_evaluate, retrieval_audit, retrieval_profile, retrieval_query, relation_release, relation_model, relation_upgrade, relation_upgrade_project, fact_render, run_state, workflow, host_adapter, protocol, protocol_migration, upgrade_plan, review_queue
     from .retrieval_model import json_bytes as retrieval_json_bytes, markdown_destination, strict_json as retrieval_json
-    from . import verifier, content_language, identity, ui_model
+    from . import verifier, content_language, identity, ui_model, retrieval_replay_card
 except ImportError:  # 兼容直接执行 validation/knowledge.py
     from business_urls import contains_source_repository_url
     from adapters.ts_java import scan as scan_candidates
@@ -36,9 +36,9 @@ except ImportError:  # 兼容直接执行 validation/knowledge.py
     from pinned_source import PinnedReads
     from evidence_snapshot import snapshot as source_snapshot
     from governance import Governance, json_text, atomic_write, digest, scan_business_terms
-    import retrieval_build, retrieval_evaluate, retrieval_audit, retrieval_profile, retrieval_query, relation_release, relation_model, relation_upgrade, relation_upgrade_project, fact_render, run_state, workflow, host_adapter, protocol, protocol_migration, upgrade_plan
+    import retrieval_build, retrieval_evaluate, retrieval_audit, retrieval_profile, retrieval_query, relation_release, relation_model, relation_upgrade, relation_upgrade_project, fact_render, run_state, workflow, host_adapter, protocol, protocol_migration, upgrade_plan, review_queue
     from retrieval_model import json_bytes as retrieval_json_bytes, markdown_destination, strict_json as retrieval_json
-    import verifier, content_language, identity, ui_model
+    import verifier, content_language, identity, ui_model, retrieval_replay_card
 
 
 _VERSION_FILE = Path(__file__).resolve().parents[1] / "VERSION"
@@ -228,7 +228,10 @@ def resolve_repository_path(raw: str, *, resolve: bool, environ: dict[str, str] 
     return raw
 
 
-def read_config(project: Path, *, resolve_repository_paths: bool = True, environ: dict[str, str] | None = None) -> tuple[Path, dict]:
+def read_config(project: Path, *, resolve_repository_paths: bool = True, environ: dict[str, str] | None = None,
+                require_knowledge_source: bool = True) -> tuple[Path, dict]:
+    # Compare canonical paths (macOS can expose the same folder under /var and /private/var).
+    project = project.resolve(strict=True)
     config_path = project / "知识库配置.json"
     allowed = {
         "standard_version", "knowledge_source_root", "repositories", "coverage_terms",
@@ -264,9 +267,20 @@ def read_config(project: Path, *, resolve_repository_paths: bool = True, environ
     raw_source = project / name
     if raw_source.is_symlink():
         raise KnowledgeError("知识源目录不能是符号链接")
-    source = raw_source.resolve(strict=True)
-    if not source.is_relative_to(project) or not source.is_dir():
-        raise KnowledgeError("知识源目录不存在或越出文档项目")
+    try:
+        source = raw_source.resolve(strict=True)
+    except FileNotFoundError:
+        # Only source-only commands can use a future directory. A regular
+        # file in a parent component is not a missing directory.
+        source = raw_source.resolve(strict=False)
+    except NotADirectoryError:
+        raise KnowledgeError("知识源路径必须指向文档项目内的目录") from None
+    if not source.is_relative_to(project):
+        raise KnowledgeError("知识源路径越出文档项目；请选择项目内的目录")
+    if require_knowledge_source and not source.exists():
+        raise KnowledgeError(f"知识源目录尚未创建：{name}；请先建立知识源目录与功能大纲")
+    if source.exists() and not source.is_dir():
+        raise KnowledgeError("知识源路径必须指向文档项目内的目录")
     repos = config.get("repositories")
     if not isinstance(repos, dict) or not repos:
         raise KnowledgeError("repositories 至少需要一个带固定提交的源码仓库")
@@ -1246,7 +1260,10 @@ def _main() -> int:
             sub.add_argument("--suite", type=Path, required=True)
             sub.add_argument("--results", type=Path, required=action == "retrieval-diagnose-context")
         if action == "retrieval-diagnose-context":
-            sub.add_argument("--contexts", type=Path, required=True, help="每道题实际送入模型的证据片段 JSON")
+            sub.add_argument("--contexts", type=Path, required=True, help="逐题记录上下文中包含的证据片段 JSON")
+            sub.add_argument("--card", metavar="CASE_ID", help="为一题输出证据复盘卡（默认 Markdown；--output json 可选）")
+            sub.add_argument("--card-language", choices=("zh-CN", "en"), help="复盘卡语言，默认 zh-CN")
+            sub.add_argument("--include-excerpts", action="store_true", help="在复盘卡中附上片段及标注原文；只用于本地复核")
         if action == "retrieval-compare":
             sub.add_argument("--compact-project-root", type=Path, required=True)
         if action == "retrieval-query":
@@ -1276,6 +1293,7 @@ def _main() -> int:
             preview_scope.add_argument("--module-id")
             preview_scope.add_argument("--all-modules", action="store_true")
             sub.add_argument("--plan", action="store_true", help="全项目模式下输出绑定输入摘要的只读复核候选计划")
+            sub.add_argument("--review-queue", action="store_true", help="按已核对的计划生成只读复核工单；必须提供计划摘要")
             sub.add_argument("--expect-plan-sha256", help="复算候选计划并核对先前保存的摘要；不接受过期输入")
             sub.add_argument("--repository-id", required=True)
             sub.add_argument("--new-commit", required=True)
@@ -1386,11 +1404,13 @@ def _main() -> int:
             print(json_text(workflow.cancel(project, args.run_id)))
             return 0
         if args.action == "evidence-snapshot":
-            _, snapshot_config = read_config(project)
+            _, snapshot_config = read_config(project, require_knowledge_source=False)
             verify_repos(snapshot_config)
             print(json_text(source_snapshot(args.anchor, snapshot_config["repositories"])))
             return 0
         if args.action == "preview-upgrade":
+            if args.review_queue and not (args.all_modules and args.plan and args.expect_plan_sha256):
+                raise KnowledgeError("--review-queue requires --all-modules --plan --expect-plan-sha256")
             preview_source, preview_config = read_config(project)
             verify_repos(preview_config)
             preview_docs, preview_outline = read_documents(preview_source)
@@ -1433,6 +1453,9 @@ def _main() -> int:
                 if args.expect_plan_sha256 is not None and (not re.fullmatch(r"[0-9a-f]{64}", args.expect_plan_sha256)
                                                             or planned["plan_sha256"] != args.expect_plan_sha256):
                     raise KnowledgeError("升级候选计划已过期；重新生成并核对输入后再继续")
+                if args.review_queue:
+                    planned = review_queue.build(planned, result, preview_governance.relations,
+                                                 preview_config["repositories"][args.repository_id], facts)
                 print(json_text(planned))
                 return 0
             if args.exclude_path:
@@ -1450,7 +1473,7 @@ def _main() -> int:
             print(json_text(relation_upgrade.preview(loaded[0], preview_config["repositories"], args.repository_id, args.new_commit)))
             return 0
         if args.action == "analyze-candidates":
-            _, candidate_config = read_config(project)
+            _, candidate_config = read_config(project, require_knowledge_source=False)
             verify_repos(candidate_config)
             repository = candidate_config["repositories"].get(args.repository_id)
             if repository is None:
@@ -1471,15 +1494,30 @@ def _main() -> int:
         if args.action == "retrieval-diagnose-context":
             release_root = project / "发布"
             governance = Governance(project, project / "知识源", {}, [], None, sys.modules[__name__])
-            governance.audit_release(args.release_id)
+            if (args.card_language or args.include_excerpts) and args.card is None:
+                raise KnowledgeError("--card-language 和 --include-excerpts 只用于 --card")
+            base = governance.audit_release(args.release_id)
+            manifest_path = release_root / "检索清单" / f"{args.release_id}.json"
+            manifest_sha256 = digest(manifest_path.read_bytes()) if args.card is not None else None
             retrieval_audit.audit_in_release(release_root, args.release_id, require_ready=False)
-            manifest = retrieval_json(release_root / "检索清单" / f"{args.release_id}.json")
+            manifest = retrieval_json(manifest_path)
+            suite = retrieval_evaluate.load_suite(args.suite)
+            units = retrieval_evaluate.load_units(release_root, manifest)
+            results, contexts = retrieval_json(args.results), retrieval_json(args.contexts)
             result = retrieval_evaluate.diagnose_context(
-                retrieval_evaluate.load_suite(args.suite), retrieval_evaluate.load_units(release_root, manifest),
-                retrieval_json(args.results), retrieval_json(args.contexts),
-                digest(retrieval_json_bytes(manifest["views"])), args.release_id,
+                suite, units, results, contexts, digest(retrieval_json_bytes(manifest["views"])), args.release_id,
             )
-            print(json_text(result))
+            if args.card is None:
+                print(json_text(result))
+                return 0
+            card = retrieval_replay_card.build(
+                project, args.card, suite, results, contexts, result, units, base, manifest, manifest_sha256,
+                sys.modules[__name__], include_excerpts=args.include_excerpts,
+            )
+            if digest(manifest_path.read_bytes()) != manifest_sha256:
+                raise KnowledgeError("核验期间检索清单发生变化，请重新运行")
+            print(json_text(card) if args.output == "json" else
+                  retrieval_replay_card.markdown(card, args.card_language or "zh-CN"), end="")
             return 0
         if args.action == "retrieval-compare":
             compact_project = args.compact_project_root.resolve(strict=True)

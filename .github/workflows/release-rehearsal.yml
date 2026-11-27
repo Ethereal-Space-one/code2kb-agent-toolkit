@@ -10,6 +10,7 @@ on:
       - "scripts/package_plugins.py"
       - "scripts/test_package_plugins.py"
       - "scripts/release_validation.py"
+      - "scripts/release_receipt.py"
       - "scripts/test_release_validation.py"
       - "docs/release-process.md"
   workflow_dispatch:

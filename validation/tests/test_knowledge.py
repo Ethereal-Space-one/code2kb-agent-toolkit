@@ -96,6 +96,31 @@ def finalize_fixture(project: Path, module_id: str, *, on_prepared: Callable[[di
 
 
 class KnowledgeTests(unittest.TestCase):
+    def test_read_config_accepts_project_path_alias_but_rejects_source_symlinks(self):
+        alias = self.root / "alias"
+        alias.symlink_to(self.root.resolve(), target_is_directory=True)
+        source, _ = core.read_config(alias / "project")
+        self.assertEqual(source, self.source.resolve())
+
+        outside = self.root / "outside"
+        outside.mkdir()
+        config_path = self.project / "知识库配置.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        link = self.project / "linked"
+        link.symlink_to(outside, target_is_directory=True)
+        config["knowledge_source_root"] = "linked"
+        write(config_path, json.dumps(config, ensure_ascii=False))
+        with self.assertRaisesRegex(core.KnowledgeError, "知识源目录不能是符号链接"):
+            core.read_config(alias / "project")
+
+        (outside / "nested").mkdir()
+        for name in ("linked/nested", "linked/not-created-yet"):
+            config["knowledge_source_root"] = name
+            write(config_path, json.dumps(config, ensure_ascii=False))
+            for formal in (True, False):
+                with self.subTest(name=name, formal=formal), self.assertRaisesRegex(core.KnowledgeError, "越出文档项目"):
+                    core.read_config(alias / "project", require_knowledge_source=formal)
+
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)

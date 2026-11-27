@@ -72,6 +72,8 @@ def _files(repo: str, commit: str, scope: str | None) -> tuple[list[tuple[str, i
             skipped["empty_or_large"] += 1
             continue
         selected.append((path, int(size)))
+    if scope is not None and not in_scope:
+        raise ValueError(f"固定提交 {commit} 中找不到扫描范围：{scope}；请核对仓库根目录相对路径和固定提交")
     return selected, skipped
 
 

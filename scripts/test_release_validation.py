@@ -15,6 +15,7 @@ import zipfile
 
 import package_plugins as packaging
 import release_validation as release
+import release_receipt as receipt
 
 
 class BundleTest(unittest.TestCase):
@@ -119,6 +120,63 @@ class BundleTest(unittest.TestCase):
             release.verify_bundle(self.bundle)
         with self.assertRaisesRegex(ValueError, "重复 JSON"):
             release.parse_json(b'{"version":"2.5.0","version":"2.4.0"}')
+
+    def test_receipt_offline_does_not_promote_or_infer_remote_state(self):
+        r = receipt.build(self.repo, self.commit, self.bundle, self.digest)
+        self.assertEqual(r["result"], "pending")
+        self.assertEqual(r["checks"]["package"]["state"], "verified")
+        self.assertTrue(all(r["checks"][k]["state"] == "pending" for k in ("ci","npm","github_release")))
+        self.assertFalse(r["writes"])
+        invalid = receipt.build(self.repo, self.commit, self.bundle, "0"*64, self.reads())
+        self.assertEqual(invalid["result"], "blocked")
+        self.assertEqual(invalid["checks"]["package"]["state"], "failed")
+        self.assertEqual(invalid["checks"]["npm"]["state"], "pending")
+
+    def test_receipt_ci_provenance_and_exact_attempt(self):
+        names = ["test (3.9)", "macos-smoke", "plugin-packages", "CI Gate"]
+        run = dict(id=7, head_sha=self.commit, path=".github/workflows/ci.yml", event="push", head_branch="main",
+                   repository={"full_name":release.REPOSITORY},head_repository={"full_name":release.REPOSITORY},
+                   run_attempt=2, status="completed",conclusion="success")
+        jobs = dict(total_count=len(names),jobs=[dict(name=n,head_sha=self.commit,run_id=7,status="completed",conclusion="success") for n in names])
+        for changes in ({"head_sha":"0"*40},{"head_branch":"other"},{"event":"pull_request"},
+                        {"head_repository":{"full_name":"fork/other"}},{"path":"static/other"}):
+            reads = Mock(); reads.json.return_value = {**run,**changes}
+            with self.subTest(changes=changes), self.assertRaisesRegex(ValueError, "mismatch"):
+                receipt.ci(reads,self.commit,7)
+        reads = Mock(); reads.json.side_effect = [run,jobs]
+        self.assertEqual(receipt.ci(reads,self.commit,7)["state"], "verified")
+        self.assertIn("/attempts/2/jobs?",reads.json.call_args.args[0])
+        for mutation in ("missing", "cancelled", "partial", "wrong-job"):
+            data = copy.deepcopy(jobs)
+            if mutation == "missing": data["jobs"][-1]["name"] = "other"
+            if mutation == "cancelled": data["jobs"][1]["conclusion"] = "cancelled"
+            if mutation == "partial": data["total_count"] = 120
+            if mutation == "wrong-job": data["jobs"][2]["head_sha"] = "0"*40
+            reads = Mock(); reads.json.side_effect = [run,data]
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                receipt.ci(reads,self.commit,7)
+
+    def test_receipt_isolates_registry_release_and_ci_failures(self):
+        assets = [{"name":p.name,"size":p.stat().st_size,"digest":"sha256:"+hashlib.sha256(p.read_bytes()).hexdigest()} for p in self.bundle.iterdir()]
+        live = dict(tag_name="v2.5.0",draft=False,prerelease=False,immutable=True,assets=assets)
+        reads = self.reads(live)
+        base = reads.json.side_effect
+        def get(path, **kwargs):
+            if "dist-tags" in path: return {"latest":"2.5.0","release-2.5.0":"2.5.0"}
+            return base(path,**kwargs)
+        reads.json.side_effect = get
+        with patch.object(receipt, "ci", return_value={"state":"verified"}):
+            r = receipt.build(self.repo,self.commit,self.bundle,self.digest,reads,7)
+            self.assertEqual(r["result"],"verified")
+            self.assertEqual(r["checks"]["github_release"]["scope"],"matching_not_independently_downloaded")
+            reads.read.return_value=b"different tarball"
+            r = receipt.build(self.repo,self.commit,self.bundle,self.digest,reads,7)
+            self.assertEqual(r["result"],"blocked")
+            self.assertEqual(r["checks"]["npm"]["state"],"unverified")
+            self.assertEqual(r["checks"]["github_release"]["state"],"verified")
+            r = receipt.build(self.repo,self.commit,self.bundle,self.digest,self.reads(published=False),7)
+            self.assertEqual(r["result"],"pending")
+            self.assertEqual(r["checks"]["npm"]["state"],"pending")
 
     def test_registry_matching_retry_skips_publish_and_never_lowers_latest(self):
         for latest in ("2.5.0", "2.6.0", "2.10.0"):
