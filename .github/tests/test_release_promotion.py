@@ -145,6 +145,7 @@ class ReleasePromotionTest(unittest.TestCase):
         values = {**self.anchors, "ARMED": f"v{self.version}@{self.commit}", **overrides}
         context = {"runner.temp": str(runner), "github.workspace": str(runner), "github.token": "fake",
                    "github.sha": values["SOURCE_COMMIT"], "vars.RELEASE_ARMED_REF": values["ARMED"],
+                   "vars.RELEASE_DRAFT_WITNESS": values.get("DRAFT_WITNESS", "117:v0.0.0-code2kb-proof-1234567890abcdef"),
                    "needs.package.outputs.artifact_id": values.get("ARTIFACT_ID", "4242")}
         for key in ("VERSION", "SUMS_SHA256", "MANIFEST_SHA256"):
             context["needs.package.outputs." + key.lower()] = values[key]
@@ -230,16 +231,24 @@ class ReleasePromotionTest(unittest.TestCase):
         self.assertNotEqual(self.consume("github").returncode, 0)
         self.assertEqual(len(self.events("github-write")), 7)
 
-    def test_preflight_requires_push_visibility_and_refuses_existing_draft(self):
-        self.state["push"] = False
-        self.save_state()
-        self.assertNotEqual(self.consume("preflight").returncode, 0)
-        self.state["push"] = True
-        self.save_state()
+    def test_both_guards_require_visible_private_witness_and_reject_collisions(self):
+        for role in ("preflight", "github"):
+            for state in ({"show_witness": False}, {"witness_is_draft": False}):
+                with self.subTest(role=role, state=state):
+                    self.state.update(state)
+                    self.save_state()
+                    self.assertIn("draft visibility not established", self.consume(role).stderr)
+                    for key in state:
+                        del self.state[key]
+                    self.save_state()
+            for malformed in ("", "012:v0.0.0-code2kb-proof-1234567890abcdef", "117:v2.5.1"):
+                self.assertIn("witness missing or invalid", self.consume(role, DRAFT_WITNESS=malformed).stderr)
+            self.assertIn("draft visibility not established", self.consume(role, DRAFT_WITNESS="118:v0.0.0-code2kb-proof-1234567890abcdef").stderr)
         draft = self.service / "release.json"
-        draft.write_text(json.dumps({"tag_name": "v" + self.version, "draft": True}))
-        self.assertNotEqual(self.consume("preflight").returncode, 0)
-        self.assertNotEqual(self.consume("github").returncode, 0)
+        for private in (True, False):
+            draft.write_text(json.dumps({"id": 118, "tag_name": "v" + self.version, "draft": private}))
+            for role in ("preflight", "github"):
+                self.assertIn("existing release or draft", self.consume(role).stderr)
         self.assertFalse(self.events("github-write"))
 
     def test_registry_503_channel_collision_and_mismatching_duplicate_do_not_publish(self):

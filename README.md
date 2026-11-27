@@ -59,7 +59,7 @@ AI 沿代码整理功能、流程、限制和问答；`code2kb` 检查证据记�
 
 ## 插件安装
 
-可直接安装的是 [v2.4.1](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.4.1)；下表固定演示这个已发行版本。验证 2.5.0 源码改动，请按完整提交核对，不能只看工程版号。三种宿主选一种即可：
+可直接安装的是 [v2.4.1](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.4.1)；下表固定演示这个已发行版本。验证 2.5.1 源码改动，请按完整提交核对，不能只看工程版号。三种宿主选一种即可：
 
 | 宿主 | 安装 2.4.1 |
 | --- | --- |
@@ -67,7 +67,7 @@ AI 沿代码整理功能、流程、限制和问答；`code2kb` 检查证据记�
 | Claude Code | 从上方 Release 下载 Claude ZIP，解压到空目录，用 `claude --plugin-dir <解压目录>` 启动。 |
 | Codex | 按下方快速开始检出 v2.4.1，在仓库根目录运行 `codex plugin marketplace add .` 和 `codex plugin add code2kb@code2kb`。不用下载 Codex ZIP。 |
 
-新开会话，让 Agent 用 Code2KB 盘点一个小模块。插件内置 Skill 和 CLI，运行需要 Git 和 Python 3.9+。要试用 2.5.0，请使用[指定提交的安装与核对流程](docs/plugin-installation.md)，不要用已发行的包代替。
+新开会话，让 Agent 用 Code2KB 盘点一个小模块。插件内置 Skill 和 CLI，运行需要 Git 和 Python 3.9+。要试用 2.5.1，请使用[指定提交的安装与核对流程](docs/plugin-installation.md)，不要用已发行的包代替。
 
 <br>
 
@@ -256,7 +256,7 @@ code2kb analyze-candidates --project-root /path/to/knowledge-project \
 | 导入检索系统 | [检索契约](docs/retrieval-contract.md) |
 | 判断工具保证到哪里 | [保证范围](docs/assurance-matrix.md) |
 
-当前工程版本：`2.5.0`（源码标识，不代表 npm 或 GitHub 已发行）。[2.5.0 改动与兼容提醒](docs/2.5.0-release-notes.md) · [2.4.1 正式下载](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.4.1) · [npm 2.4.1](https://www.npmjs.com/package/code2kb-dsh/v/2.4.1)。
+当前工程版本：`2.5.1`（源码标识，不代表 npm 或 GitHub 已发行）。[2.5.1 改动与兼容提醒](docs/2.5.1-release-notes.md) · [2.4.1 正式下载](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.4.1) · [npm 2.4.1](https://www.npmjs.com/package/code2kb-dsh/v/2.4.1)。
 
 本项目由 Code2KB Spec 更名为 **Code2KB Agent Toolkit**，仓库和 Python 包标识统一为 `code2kb-agent-toolkit`，命令仍为 `code2kb`。
 

@@ -20,6 +20,12 @@ on:
         required: false
         type: boolean
         default: false
+      draft_witness:
+        description: "Optional repository-owner checked draft ID and tag (ID:v0.0.0-code2kb-proof-<16 hex>); GET-only proof"
+        required: false
+        type: string
+        default: ""
+
 
 permissions:
   contents: read
@@ -29,6 +35,42 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  live-draft-probe:
+    if: github.event_name == 'workflow_dispatch' && inputs.draft_witness != '' && github.actor == github.repository_owner
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    strategy:
+      matrix:
+        phase: [github-preflight, github-release]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Exercise the exact production guard with this job's token (GET only)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRAFT_WITNESS: ${{ inputs.draft_witness }}
+          PHASE: ${{ matrix.phase }}
+        run: |
+          set -euo pipefail
+          ruby -rpsych -e 'jobs=Psych.safe_load(File.read(ARGV[0]), aliases: true).fetch("jobs"); steps=jobs.fetch(ENV.fetch("PHASE")).fetch("steps"); n=ENV.fetch("PHASE")=="github-preflight" ? "Confirm no existing release or hidden draft" : "Recheck authenticated draft and release inventory before creation"; puts steps.find{|s| s["name"]==n}.fetch("run")' .github/workflows/publish.yml > "$RUNNER_TEMP/visibility-guard.sh"
+          VERSION="$(cat VERSION)" bash "$RUNNER_TEMP/visibility-guard.sh"
+          test_status() {
+            local expected="$1" actual
+            shift
+            if actual=$("$@" 2>&1); then
+              echo 'A negative case unexpectedly passed' >&2
+              exit 1
+            fi
+            grep -Fq "$expected" <<<"$actual"
+          }
+          proof_tag=${DRAFT_WITNESS#*:}
+          test_status 'existing release or draft' env VERSION="${proof_tag#v}" bash "$RUNNER_TEMP/visibility-guard.sh"
+          # A deliberately incorrect numeric ID must fail, not silently treat the list as complete.
+          test_status 'draft visibility not established' env DRAFT_WITNESS="1:$proof_tag" VERSION="$(cat VERSION)" bash "$RUNNER_TEMP/visibility-guard.sh"
+          echo 'Verified with an actual job token: absent target passes; private collision and wrong witness stop.'
   bundle:
     runs-on: ubuntu-24.04
     timeout-minutes: 15

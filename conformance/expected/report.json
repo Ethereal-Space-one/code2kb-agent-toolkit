@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "spec_version": "c2kb-file/1",
-  "implementation_version": "2.5.0",
+  "implementation_version": "2.5.1",
   "requirements_total": 67,
   "requirements_covered": 67,
   "cases_total": 4,

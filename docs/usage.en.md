@@ -47,7 +47,7 @@ Minimal configuration, with placeholders to replace:
 
 Absent `content_language` means `zh-CN`. Supported values are exactly `zh-CN` and `en`. This capability needs a CLI that supports the new metadata; older tools may reject it.
 
-With a 2.5.0 commit that includes the first-scan change, you can use `analyze-candidates` to inventory files and `evidence-snapshot` to check a pinned source anchor once the configuration is ready. Neither read-only command requires a knowledge-source directory or writes an outline. If you use the published v2.4.1, create the configured knowledge-source directory first. The regular `check` still requires the directory and outline.
+With a 2.5.1 commit that includes the first-scan change, you can use `analyze-candidates` to inventory files and `evidence-snapshot` to check a pinned source anchor once the configuration is ready. Neither read-only command requires a knowledge-source directory or writes an outline. If you use the published v2.4.1, create the configured knowledge-source directory first. The regular `check` still requires the directory and outline.
 
 ## 2. Start the agent
 

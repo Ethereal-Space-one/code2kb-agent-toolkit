@@ -4,7 +4,7 @@ Claude Code、Codex 和 DeepSeek Harness 共用同一份知识提取 Skill 和 P
 
 ## 先选定你要的版本
 
-- **安装已发行的 2.4.1**：[v2.4.1 Release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.4.1) 提供插件附件。Claude Code / Codex 也可选干净的 `v2.4.1` 检出；DSH 用 `dsh plugin --profile desktop add code2kb-dsh@2.4.1`。[npm 2.4.1](https://www.npmjs.com/package/code2kb-dsh/v/2.4.1) 使用 `release-2.4.1` 标签。核对裸包名将安装哪一版：`npm view code2kb-dsh dist-tags --json`。验证 2.5.0 的源码改动请走下面的指定提交流程；同一版号可能有不同提交。
+- **安装已发行的 2.4.1**：[v2.4.1 Release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.4.1) 提供插件附件。Claude Code / Codex 也可选干净的 `v2.4.1` 检出；DSH 用 `dsh plugin --profile desktop add code2kb-dsh@2.4.1`。[npm 2.4.1](https://www.npmjs.com/package/code2kb-dsh/v/2.4.1) 使用 `release-2.4.1` 标签。核对裸包名将安装哪一版：`npm view code2kb-dsh dist-tags --json`。验证 2.5.1 的源码改动请走下面的指定提交流程；同一版号可能有不同提交。
 - **验证未发布的取证指引**：记录评审对象的完整 Git 提交号，另取该提交的干净检出。不要用 npm 正式包替代，也不要仅核对工程版号或入口 `SKILL.md`；候选提交可沿用旧版号和入口，却已改变其引用的取证、复核契约。
 
 ## 从指定提交安装
@@ -45,7 +45,7 @@ python3 -B scripts/package_plugins.py --commit REV --output-dir /tmp/code2kb-plu
 
 ## English
 
-**Install published 2.4.1:** Get the plugin assets from the [v2.4.1 release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.4.1), check out `v2.4.1` for Claude Code/Codex, or run `dsh plugin --profile desktop add code2kb-dsh@2.4.1` for DSH. [npm 2.4.1](https://www.npmjs.com/package/code2kb-dsh/v/2.4.1) uses the `release-2.4.1` tag. Check what a bare package name would install with `npm view code2kb-dsh dist-tags --json`. For a review of 2.5.0 source changes, use the exact-commit path below: different commits can share the same version.
+**Install published 2.4.1:** Get the plugin assets from the [v2.4.1 release](https://github.com/Ethereal-Space-one/code2kb-agent-toolkit/releases/tag/v2.4.1), check out `v2.4.1` for Claude Code/Codex, or run `dsh plugin --profile desktop add code2kb-dsh@2.4.1` for DSH. [npm 2.4.1](https://www.npmjs.com/package/code2kb-dsh/v/2.4.1) uses the `release-2.4.1` tag. Check what a bare package name would install with `npm view code2kb-dsh dist-tags --json`. For a review of 2.5.1 source changes, use the exact-commit path below: different commits can share the same version.
 
 For **unreleased extraction instructions**, take a clean checkout of the exact reviewed commit. A candidate can keep the same version and top-level skill file while changing the contracts it loads.
 
